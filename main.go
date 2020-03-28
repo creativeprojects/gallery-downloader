@@ -1,49 +1,33 @@
 package main
 
 import (
+	"bytes"
 	"flag"
-	"fmt"
+	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
 	"path"
-	"strings"
 )
 
 func main() {
-	log.SetFlags(0)
-	flag.Parse()
+	var err error
 
-	if configuration.Source == "" {
-		flag.Usage()
-		log.Fatal("\nError: missing HTML source (-source)")
-	}
+	setLogger()
+	flags := loadFlags()
 
-	if configuration.Type == "" {
-		flag.Usage()
-		log.Fatal("\nError: mising gallery type (-type)")
-	}
+	checkSource(flags)
+	checkType(flags)
+	checkOutput(flags)
 
-	if configuration.Output == "" {
-		flag.Usage()
-		log.Fatal("\nError: missing output folder (-output)")
-	}
-	if stat, err := os.Stat(configuration.Output); err == nil || os.IsExist(err) {
-		if !stat.IsDir() {
-			log.Fatalf("Output '%s' exists but is not a directory", configuration.Output)
-		}
-	}
-	if _, err := os.Stat(configuration.Output); os.IsNotExist(err) {
-		err = os.MkdirAll(configuration.Output, 0755)
-		if err != nil {
-			log.Fatalf("Cannot create output directory: %v", err)
-		}
+	config, err := loadFileConfiguration(flags.ConfigFile)
+	if err != nil {
+		log.Fatalf("Cannot load configuration: %v", err)
 	}
 
 	var baseURL = &url.URL{}
-	var err error
-	if configuration.Base != "" {
-		baseURL, err = url.Parse(configuration.Base)
+	if flags.Base != "" {
+		baseURL, err = url.Parse(flags.Base)
 		if err != nil {
 			log.Fatal("Error: -base value is not a parsable URL")
 		}
@@ -52,69 +36,89 @@ func main() {
 		}
 	}
 
-	sourceURL, err := url.Parse(configuration.Source)
+	sourceURL, err := url.Parse(flags.Source)
 	if err != nil {
 		log.Fatalf("Error parsing source URL: %v", err)
 	}
-	if sourceURL.Scheme == "" {
-		// Let's consider this is a file on disk
-		sourcefile, err := os.Open(configuration.Source)
-		if err != nil {
-			log.Fatalf("Error: cannot open HTML source file: %v", err)
-		}
-		pictures, err := loadWowSliderSource(sourcefile)
-		if err != nil {
-			log.Fatalf("Error: cannot parse HTML source file: %v", err)
-		}
-		if pictures == nil || len(pictures) == 0 {
-			log.Println("No picture found in the HTML source!")
-		}
-		total := len(pictures)
-		log.Printf("Found %d picture(s) in the HTML source", total)
 
-		for index, picture := range pictures {
-			fmt.Printf("\n(%d/%d) ", index+1, total)
-			pictureURL, err := url.Parse(picture)
-			if err != nil {
-				fmt.Printf("Error parsing picture %d (%s): %v", index, picture, err)
-				continue
-			}
-			if !pictureURL.IsAbs() {
-				if configuration.Base == "" {
-					fmt.Print("Error: cannot load picture: its URL is relative and no -base flag was given")
-					continue
-				}
-				pictureURL = joinURL(baseURL, pictureURL)
-			}
-			// fmt.Printf("Loading %s...", pictureURL.String())
-			pictureName := path.Base(pictureURL.Path)
-			if pictureName == "" || pictureName == "/" {
-				fmt.Printf("Error: cannot determine picture name from path '%s'", pictureURL.Path)
-				continue
-			}
-			output := uniqueName(path.Join(configuration.Output, pictureName))
-			err = downloadPicture(pictureURL.String(), baseURL.String(), output, configuration.Agent, configuration.User, configuration.Password)
-			if err != nil {
-				fmt.Printf(" failed: %v", err)
-			}
-		}
-		fmt.Println("")
+	if sourceURL.Scheme == "" {
+		downloadPicturesFromLocalGalleryFile(flags.Source, baseURL, flags, config.Browser)
+	} else {
+		downloadPicturesFromRemoteGallery(sourceURL, flags, config.Browser)
+	}
+
+}
+
+func setLogger() {
+	log.SetFlags(0)
+}
+
+func checkSource(flags Flags) {
+	if flags.Source == "" {
+		flag.Usage()
+		log.Fatal("\nError: missing HTML source (-source)")
 	}
 }
 
-// uniqueName checks the file already exists: if yes it adds a (n) at the end
-func uniqueName(filename string) string {
-	if _, err := os.Stat(filename); err == nil || os.IsExist(err) {
-		extension := path.Ext(filename)
-		base := strings.TrimSuffix(filename, extension)
-		index := 1
-		for {
-			filename = fmt.Sprintf("%s(%d)%s", base, index, extension)
-			if _, err := os.Stat(filename); os.IsNotExist(err) {
-				return filename
-			}
-			index++
+func checkType(flags Flags) {
+	if flags.Type == "" {
+		flag.Usage()
+		log.Fatal("\nError: missing gallery type (-type)")
+	}
+}
+
+func checkOutput(flags Flags) {
+	if flags.Output == "" {
+		flag.Usage()
+		log.Fatal("\nError: missing output folder (-output)")
+	}
+	if stat, err := os.Stat(flags.Output); err == nil || os.IsExist(err) {
+		if !stat.IsDir() {
+			log.Fatalf("Output '%s' exists but is not a directory", flags.Output)
 		}
 	}
-	return filename
+	if _, err := os.Stat(flags.Output); os.IsNotExist(err) {
+		err = os.MkdirAll(flags.Output, 0755)
+		if err != nil {
+			log.Fatalf("Cannot create output directory: %v", err)
+		}
+	}
+}
+
+func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, flags Flags, browserConfig BrowserConfiguration) {
+	// Let's consider this is a file on disk
+	sourcefile, err := os.Open(sourceFile)
+	if err != nil {
+		log.Fatalf("Error: cannot open HTML source file: %v", err)
+	}
+	pictures, err := loadGalleryAnchorHREF(sourcefile)
+	if err != nil {
+		log.Fatalf("Error: cannot parse HTML source file: %v", err)
+	}
+	if pictures == nil || len(pictures) == 0 {
+		log.Println("No picture found in the HTML source!")
+	}
+
+	downloadConfig := NewDownloadConfig(baseURL, flags.Referer, flags.User, flags.Password, flags.Output, browserConfig, flags.Wait)
+	downloadPictures(pictures, downloadConfig)
+}
+
+func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserConfig BrowserConfiguration) {
+	// We need to download the remote HTML file
+	downloadConfig := NewDownloadConfig(nil, flags.Referer, flags.User, flags.Password, "", browserConfig, 0)
+	buffer, err := downloadHTML(flags.Source, downloadConfig)
+	if err != nil {
+		log.Fatalf("Error: cannot download HTML source file: %v", err)
+	}
+	pictures, err := loadGalleryAnchorHREF(bytes.NewReader(buffer))
+	if err != nil {
+		log.Fatalf("Error: cannot parse HTML source file: %v", err)
+	}
+	if pictures == nil || len(pictures) == 0 {
+		ioutil.WriteFile(path.Join(flags.Output, "index.html"), buffer, 0644)
+		log.Println("No picture found in the HTML source. HTML file saved.")
+	}
+
+	downloadConfig = NewDownloadConfig(sourceURL, flags.Source, flags.User, flags.Password, flags.Output, browserConfig, flags.Wait)
+	downloadPictures(pictures, downloadConfig)
 }

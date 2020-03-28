@@ -7,7 +7,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-func loadWowSliderSource(source io.Reader) ([]string, error) {
+func loadGalleryAnchorHREF(source io.Reader) ([]string, error) {
 	doc, err := html.Parse(source)
 	if err != nil {
 		return nil, err
