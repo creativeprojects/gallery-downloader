@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 	"path"
 )
 
@@ -15,8 +16,12 @@ func main() {
 
 	root = path.Clean(root)
 
+	if _, err := os.Stat(root); os.IsNotExist(err) {
+		log.Fatalf("'%s' does not exist", root)
+	}
+
 	log.Printf("Serving files from '%s' (use -root option to change the default)", root)
-	fs := http.FileServer(http.Dir("./static"))
+	fs := http.FileServer(http.Dir(root))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s", r.Method, r.RequestURI)
 		fs.ServeHTTP(w, r)
