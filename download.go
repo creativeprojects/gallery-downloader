@@ -22,11 +22,12 @@ type DownloadConfig struct {
 	User     string
 	Password string
 	Output   string
-	Wait     int
+	WaitMin  int
+	WaitMax  int
 }
 
 // NewDownloadConfig creates a new DownloadConfig with an http client
-func NewDownloadConfig(baseURL *url.URL, referer, user, password, output string, browser BrowserConfiguration, wait int) DownloadConfig {
+func NewDownloadConfig(baseURL *url.URL, referer, user, password, output string, browser BrowserConfiguration, waitMin, waitMax int) DownloadConfig {
 	return DownloadConfig{
 		Client:   &http.Client{},
 		BaseURL:  baseURL,
@@ -35,7 +36,8 @@ func NewDownloadConfig(baseURL *url.URL, referer, user, password, output string,
 		User:     user,
 		Password: password,
 		Output:   output,
-		Wait:     wait,
+		WaitMin:  waitMin,
+		WaitMax:  waitMax,
 	}
 }
 
@@ -97,10 +99,10 @@ func downloadPictures(pictures []string, downloadConfig DownloadConfig) error {
 			fmt.Printf(" failed: %v", err)
 		} else {
 			fmt.Printf(" loaded %d bytes", size)
-			if downloadConfig.Wait > 0 {
-				wait := rand.Intn(downloadConfig.Wait - 1000)
-				fmt.Printf(" and wait %dms", wait+1000)
-				time.Sleep(time.Duration(wait+1000) * time.Millisecond)
+			if downloadConfig.WaitMax > 0 && downloadConfig.WaitMax > downloadConfig.WaitMin {
+				wait := rand.Intn(downloadConfig.WaitMax - downloadConfig.WaitMin)
+				fmt.Printf(" and wait %dms", wait+downloadConfig.WaitMin)
+				time.Sleep(time.Duration(wait+downloadConfig.WaitMin) * time.Millisecond)
 			}
 		}
 	}

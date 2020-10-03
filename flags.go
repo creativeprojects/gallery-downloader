@@ -15,7 +15,8 @@ type Flags struct {
 	Referer    string
 	User       string
 	Password   string
-	Wait       int
+	WaitMin    int
+	WaitMax    int
 }
 
 var (
@@ -34,7 +35,8 @@ func loadFlags() Flags {
 	flag.StringVar(&flags.Referer, "referer", "", "referer header for HTML file, or for downloading images from a local HTML file")
 	flag.StringVar(&flags.User, "user", "", "user (if the http server needs basic authentication)")
 	flag.StringVar(&flags.Password, "password", "", "password (if the http server needs basic authentication)")
-	flag.IntVar(&flags.Wait, "wait", 3000, "wait between 1000 and n milliseconds before downloading the next image. Use 0 to deactivate")
+	flag.IntVar(&flags.WaitMin, "wait-min", 300, "wait n milliseconds minimum before downloading the next image. Use 0 to deactivate")
+	flag.IntVar(&flags.WaitMax, "wait-max", 1000, "wait n milliseconds maximum before downloading the next image. Use 0 to deactivate")
 	flag.Parse()
 	return flags
 }

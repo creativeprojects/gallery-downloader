@@ -92,7 +92,7 @@ func TestDownloadHTMLNoAuthorization(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	download := NewDownloadConfig(nil, "test://referer", "", "", "", testBrowserConfiguration, 0)
+	download := NewDownloadConfig(nil, "test://referer", "", "", "", testBrowserConfiguration, 0, 0)
 	buffer, err := downloadHTML(ts.URL, download)
 	if err != nil {
 		t.Fatalf("downloadHTML returned an error: %v", err)
@@ -114,7 +114,7 @@ func TestDownloadPictureNoAuthorization(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	download := NewDownloadConfig(nil, "test://referer", "", "", "", testBrowserConfiguration, 0)
+	download := NewDownloadConfig(nil, "test://referer", "", "", "", testBrowserConfiguration, 0, 0)
 	size, err := downloadPicture(ts.URL, "", download)
 	if err != nil {
 		t.Fatalf("downloadPicture returned an error: %v", err)
@@ -136,7 +136,7 @@ func TestDownloadPictureWithAuthorization(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	download := NewDownloadConfig(nil, "test://referer", "myuser", "mypassword", "", testBrowserConfiguration, 0)
+	download := NewDownloadConfig(nil, "test://referer", "myuser", "mypassword", "", testBrowserConfiguration, 0, 0)
 	size, err := downloadPicture(ts.URL, "", download)
 	if err != nil {
 		t.Fatalf("downloadPicture returned an error: %v", err)
