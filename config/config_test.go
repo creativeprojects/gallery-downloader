@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"bytes"
@@ -35,36 +35,36 @@ func TestLoadConfiguration(t *testing.T) {
 	}`
 
 	reader := ioutil.NopCloser(bytes.NewReader([]byte(configSource)))
-	config, err := loadConfiguration(reader)
+	cfg, err := loadConfiguration(reader)
 	if err != nil {
 		t.Fatal(err)
 		return
 	}
 
-	if config.Browser.UserAgent == "" {
+	if cfg.Browser.UserAgent == "" {
 		t.Error("'userAgent' should not be empty")
 	}
 
-	if config.Browser.HTML.Headers == nil {
+	if cfg.Browser.HTML.Headers == nil {
 		t.Error("headers configuration not found in section 'html'")
 	}
-	if len(config.Browser.HTML.Headers) != 6 {
-		t.Errorf("'html' section should declare %d headers, but %d found", 6, len(config.Browser.HTML.Headers))
+	if len(cfg.Browser.HTML.Headers) != 6 {
+		t.Errorf("'html' section should declare %d headers, but %d found", 6, len(cfg.Browser.HTML.Headers))
 	}
-	value, found := config.Browser.HTML.Headers["Upgrade-Insecure-Requests"]
+	value, found := cfg.Browser.HTML.Headers["Upgrade-Insecure-Requests"]
 	if !found {
 		t.Error("'Upgrade-Insecure-Requests' header not found in 'html' section")
 	} else if value != "1" {
 		t.Errorf("'Upgrade-Insecure-Requests' header expected value '1' but found %s", value)
 	}
 
-	if config.Browser.Picture.Headers == nil {
+	if cfg.Browser.Picture.Headers == nil {
 		t.Error("headers configuration not found in section 'picture'")
 	}
-	if len(config.Browser.Picture.Headers) != 6 {
-		t.Errorf("'picture' section should declare %d headers, but %d found", 6, len(config.Browser.HTML.Headers))
+	if len(cfg.Browser.Picture.Headers) != 6 {
+		t.Errorf("'picture' section should declare %d headers, but %d found", 6, len(cfg.Browser.HTML.Headers))
 	}
-	value, found = config.Browser.Picture.Headers["DNT"]
+	value, found = cfg.Browser.Picture.Headers["DNT"]
 	if !found {
 		t.Error("'DNT' header not found in 'picture' section")
 	} else if value != "1" {

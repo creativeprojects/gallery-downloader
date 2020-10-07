@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"flag"
+	"gallery-downloader/config"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -20,7 +21,7 @@ func main() {
 	checkType(flags)
 	checkOutput(flags)
 
-	config, err := loadFileConfiguration(flags.ConfigFile)
+	cfg, err := config.LoadFileConfiguration(flags.ConfigFile)
 	if err != nil {
 		log.Fatalf("Cannot load configuration: %v", err)
 	}
@@ -42,9 +43,9 @@ func main() {
 	}
 
 	if sourceURL.Scheme == "" {
-		downloadPicturesFromLocalGalleryFile(flags.Source, baseURL, flags, config.Browser)
+		downloadPicturesFromLocalGalleryFile(flags.Source, baseURL, flags, cfg.Browser)
 	} else {
-		downloadPicturesFromRemoteGallery(sourceURL, flags, config.Browser)
+		downloadPicturesFromRemoteGallery(sourceURL, flags, cfg.Browser)
 	}
 
 }
@@ -85,16 +86,27 @@ func checkOutput(flags Flags) {
 	}
 }
 
-func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, flags Flags, browserConfig BrowserConfiguration) {
+func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, flags Flags, browserConfig config.Browser) {
 	// Let's consider this is a file on disk
 	sourcefile, err := os.Open(sourceFile)
 	if err != nil {
 		log.Fatalf("Error: cannot open HTML source file: %v", err)
 	}
+	log.Print("Trying first method to detect pictures gallery")
 	pictures, err := loadGalleryAnchorHREF(sourcefile)
 	if err != nil {
 		log.Fatalf("Error: cannot parse HTML source file: %v", err)
 	}
+
+	if pictures == nil || len(pictures) == 0 {
+		// try second method
+		log.Print("Trying second method to detect pictures gallery")
+		pictures, err = loadGalleryListItem(sourcefile)
+		if err != nil {
+			log.Fatalf("Error: cannot parse HTML source file: %v", err)
+		}
+	}
+
 	if pictures == nil || len(pictures) == 0 {
 		log.Println("No picture found in the HTML source!")
 	}
@@ -103,17 +115,28 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 	downloadPictures(pictures, downloadConfig)
 }
 
-func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserConfig BrowserConfiguration) {
+func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserConfig config.Browser) {
 	// We need to download the remote HTML file
 	downloadConfig := NewDownloadConfig(nil, flags.Referer, flags.User, flags.Password, "", browserConfig, 0, 0)
 	buffer, err := downloadHTML(flags.Source, downloadConfig)
 	if err != nil {
 		log.Fatalf("Error: cannot download HTML source file: %v", err)
 	}
+	log.Print("Trying first method to detect pictures gallery")
 	pictures, err := loadGalleryAnchorHREF(bytes.NewReader(buffer))
 	if err != nil {
 		log.Fatalf("Error: cannot parse HTML source file: %v", err)
 	}
+
+	if pictures == nil || len(pictures) == 0 {
+		// try second method
+		log.Print("Trying second method to detect pictures gallery")
+		pictures, err = loadGalleryListItem(bytes.NewReader(buffer))
+		if err != nil {
+			log.Fatalf("Error: cannot parse HTML source file: %v", err)
+		}
+	}
+
 	if pictures == nil || len(pictures) == 0 {
 		ioutil.WriteFile(path.Join(flags.Output, "index.html"), buffer, 0644)
 		log.Println("No picture found in the HTML source. HTML file saved.")

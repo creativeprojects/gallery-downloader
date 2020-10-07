@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
+	"gallery-downloader/config"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
 var (
-	testBrowserConfiguration = BrowserConfiguration{
+	testBrowserConfiguration = config.Browser{
 		UserAgent: "Mozilla/5.0 (test)",
-		HTML: ElementConfiguration{
+		HTML: config.Element{
 			Headers: map[string]string{
 				"Accept":                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
 				"Accept-Encoding":           "gzip, deflate, br",
@@ -20,7 +21,7 @@ var (
 				"Upgrade-Insecure-Requests": "1",
 			},
 		},
-		Picture: ElementConfiguration{
+		Picture: config.Element{
 			Headers: map[string]string{
 				"Accept":          "image/webp,*/*",
 				"Accept-Encoding": "gzip, deflate, br",

@@ -3,6 +3,7 @@ package main
 import (
 	"compress/gzip"
 	"fmt"
+	"gallery-downloader/config"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -17,7 +18,7 @@ import (
 type DownloadConfig struct {
 	Client   *http.Client
 	BaseURL  *url.URL
-	Browser  BrowserConfiguration
+	Browser  config.Browser
 	Referer  string
 	User     string
 	Password string
@@ -27,7 +28,7 @@ type DownloadConfig struct {
 }
 
 // NewDownloadConfig creates a new DownloadConfig with an http client
-func NewDownloadConfig(baseURL *url.URL, referer, user, password, output string, browser BrowserConfiguration, waitMin, waitMax int) DownloadConfig {
+func NewDownloadConfig(baseURL *url.URL, referer, user, password, output string, browser config.Browser, waitMin, waitMax int) DownloadConfig {
 	return DownloadConfig{
 		Client:   &http.Client{},
 		BaseURL:  baseURL,

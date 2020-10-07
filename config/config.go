@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"encoding/json"
@@ -8,18 +8,18 @@ import (
 
 // Configuration contains all configuration from JSON file
 type Configuration struct {
-	Browser BrowserConfiguration `json:"browser"`
+	Browser Browser `json:"browser"`
 }
 
-// BrowserConfiguration contains all browser configuration
-type BrowserConfiguration struct {
-	UserAgent string               `json:"userAgent"`
-	HTML      ElementConfiguration `json:"html"`
-	Picture   ElementConfiguration `json:"picture"`
+// Browser contains all browser configuration
+type Browser struct {
+	UserAgent string  `json:"userAgent"`
+	HTML      Element `json:"html"`
+	Picture   Element `json:"picture"`
 }
 
-// ElementConfiguration contains browser configuration for each element (html, picture, etc.)
-type ElementConfiguration struct {
+// Element contains browser configuration for each element (html, picture, etc.)
+type Element struct {
 	Headers map[string]string `json:"headers"`
 }
 
@@ -28,7 +28,8 @@ func newConfiguration() *Configuration {
 	return &Configuration{}
 }
 
-func loadFileConfiguration(fileName string) (*Configuration, error) {
+// LoadFileConfiguration loads a Configuration object from a JSON file
+func LoadFileConfiguration(fileName string) (*Configuration, error) {
 	file, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
@@ -39,10 +40,10 @@ func loadFileConfiguration(fileName string) (*Configuration, error) {
 func loadConfiguration(reader io.ReadCloser) (*Configuration, error) {
 	defer reader.Close()
 	decoder := json.NewDecoder(reader)
-	config := newConfiguration()
-	err := decoder.Decode(config)
+	cfg := newConfiguration()
+	err := decoder.Decode(cfg)
 	if err != nil {
 		return nil, err
 	}
-	return config, nil
+	return cfg, nil
 }
