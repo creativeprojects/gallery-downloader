@@ -1,4 +1,4 @@
-package main
+package scan
 
 import (
 	"strings"
@@ -101,9 +101,9 @@ var (
 )
 
 func TestLoadGalleryAnchorHREF(t *testing.T) {
-	pictures, err := loadGalleryAnchorHREF(strings.NewReader(testHTMLtype1))
+	pictures, err := GalleryAnchorHREF(strings.NewReader(testHTMLtype1))
 	if err != nil {
-		t.Fatalf("loadGalleryAnchorHREF returned an error: %v", err)
+		t.Fatalf("GalleryAnchorHREF returned an error: %v", err)
 	}
 
 	if len(pictures) != 10 {
@@ -113,13 +113,13 @@ func TestLoadGalleryAnchorHREF(t *testing.T) {
 
 func TestEmptyGalleryAnchorHREF(t *testing.T) {
 
-	pictures, err := loadGalleryAnchorHREF(strings.NewReader(testHTMLtype2))
+	pictures, err := GalleryAnchorHREF(strings.NewReader(testHTMLtype2))
 	if err != nil {
-		t.Fatalf("loadGalleryAnchorHREF returned an error: %v", err)
+		t.Fatalf("GalleryAnchorHREF returned an error: %v", err)
 	}
 
 	if pictures == nil {
-		t.Fatalf("loadGalleryAnchorHREF returned nil")
+		t.Fatalf("GalleryAnchorHREF returned nil")
 	}
 
 	if len(pictures) != 0 {
@@ -129,13 +129,13 @@ func TestEmptyGalleryAnchorHREF(t *testing.T) {
 
 func TestLoadGalleryListItem(t *testing.T) {
 
-	pictures, err := loadGalleryListItem(strings.NewReader(testHTMLtype2))
+	pictures, err := GalleryListItem(strings.NewReader(testHTMLtype2))
 	if err != nil {
-		t.Fatalf("loadGalleryListItem returned an error: %v", err)
+		t.Fatalf("GalleryListItem returned an error: %v", err)
 	}
 
 	if pictures == nil {
-		t.Fatalf("loadGalleryListItem returned nil")
+		t.Fatalf("GalleryListItem returned nil")
 	}
 
 	if len(pictures) != 10 {

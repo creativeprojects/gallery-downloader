@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"flag"
 	"gallery-downloader/config"
+	"gallery-downloader/scan"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
 	"path"
+	"strings"
 )
 
 func main() {
@@ -66,6 +69,13 @@ func checkType(flags Flags) {
 		flag.Usage()
 		log.Fatal("\nError: missing gallery type (-type)")
 	}
+	for _, galleryType := range scan.AvailableGalleryScanners {
+		if galleryType == flags.Type {
+			// nothing else to check
+			return
+		}
+	}
+	log.Fatalf("\nError: unknown gallery type. Known types are: %s", strings.Join(scan.AvailableGalleryScanners[:], ", "))
 }
 
 func checkOutput(flags Flags) {
@@ -92,21 +102,8 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 	if err != nil {
 		log.Fatalf("Error: cannot open HTML source file: %v", err)
 	}
-	log.Print("Trying first method to detect pictures gallery")
-	pictures, err := loadGalleryAnchorHREF(sourcefile)
-	if err != nil {
-		log.Fatalf("Error: cannot parse HTML source file: %v", err)
-	}
-
-	if pictures == nil || len(pictures) == 0 {
-		// try second method
-		log.Print("Trying second method to detect pictures gallery")
-		pictures, err = loadGalleryListItem(sourcefile)
-		if err != nil {
-			log.Fatalf("Error: cannot parse HTML source file: %v", err)
-		}
-	}
-
+	defer sourcefile.Close()
+	pictures := scanPictures(sourcefile, flags)
 	if pictures == nil || len(pictures) == 0 {
 		log.Println("No picture found in the HTML source!")
 	}
@@ -122,21 +119,7 @@ func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserC
 	if err != nil {
 		log.Fatalf("Error: cannot download HTML source file: %v", err)
 	}
-	log.Print("Trying first method to detect pictures gallery")
-	pictures, err := loadGalleryAnchorHREF(bytes.NewReader(buffer))
-	if err != nil {
-		log.Fatalf("Error: cannot parse HTML source file: %v", err)
-	}
-
-	if pictures == nil || len(pictures) == 0 {
-		// try second method
-		log.Print("Trying second method to detect pictures gallery")
-		pictures, err = loadGalleryListItem(bytes.NewReader(buffer))
-		if err != nil {
-			log.Fatalf("Error: cannot parse HTML source file: %v", err)
-		}
-	}
-
+	pictures := scanPictures(bytes.NewReader(buffer), flags)
 	if pictures == nil || len(pictures) == 0 {
 		ioutil.WriteFile(path.Join(flags.Output, "index.html"), buffer, 0644)
 		log.Println("No picture found in the HTML source. HTML file saved.")
@@ -144,4 +127,22 @@ func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserC
 
 	downloadConfig = NewDownloadConfig(sourceURL, flags.Source, flags.User, flags.Password, flags.Output, browserConfig, flags.WaitMin, flags.WaitMax)
 	downloadPictures(pictures, downloadConfig)
+}
+
+func scanPictures(source io.ReadSeeker, flags Flags) []string {
+	var err error
+	var pictures []string
+	log.Printf("using gallery scanner: %s", flags.Type)
+	for _, scanner := range scan.GalleryScanners[flags.Type] {
+		source.Seek(0, 0)
+		pictures, err = scanner(source)
+		if err != nil {
+			log.Fatalf("Error: cannot parse HTML source file: %v", err)
+		}
+		if len(pictures) > 1 {
+			// no need to try another one
+			return pictures
+		}
+	}
+	return pictures
 }

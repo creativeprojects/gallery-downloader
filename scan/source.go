@@ -1,4 +1,4 @@
-package main
+package scan
 
 import (
 	"io"
@@ -7,7 +7,36 @@ import (
 	"golang.org/x/net/html"
 )
 
-func loadGalleryAnchorHREF(source io.Reader) ([]string, error) {
+// GalleryScannerFunc is a gallery scanner function returning picture URLs
+type GalleryScannerFunc func(source io.Reader) ([]string, error)
+
+// Gallery type
+const (
+	AutoDetect = "AutoDetect"
+	AnchorHREF = "AnchorHREF"
+	ListItem   = "ListItem"
+)
+
+var (
+	// AvailableGalleryScanners lists the available gallery scanners
+	AvailableGalleryScanners = [...]string{AutoDetect, AnchorHREF, ListItem}
+	// GalleryScanners maps the gallery scanner functions
+	GalleryScanners map[string][]GalleryScannerFunc
+)
+
+func init() {
+	GalleryScanners = map[string][]GalleryScannerFunc{
+		AutoDetect: {
+			GalleryAnchorHREF,
+			GalleryListItem,
+		},
+		AnchorHREF: {GalleryAnchorHREF},
+		ListItem:   {GalleryListItem},
+	}
+}
+
+// GalleryAnchorHREF scans pictures like <a href="picture2.jpg" title="picture2">picture 2</a>
+func GalleryAnchorHREF(source io.Reader) ([]string, error) {
 	doc, err := html.Parse(source)
 	if err != nil {
 		return nil, err
@@ -27,7 +56,8 @@ func loadGalleryAnchorHREF(source io.Reader) ([]string, error) {
 	return pictures, nil
 }
 
-func loadGalleryListItem(source io.Reader) ([]string, error) {
+// GalleryListItem scans pictures like <li><img src="data1/images/picture002.jpg" alt="picture-002" title="picture-002" id="wows1_1"/></li>
+func GalleryListItem(source io.Reader) ([]string, error) {
 	doc, err := html.Parse(source)
 	if err != nil {
 		return nil, err

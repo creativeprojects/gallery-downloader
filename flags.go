@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"gallery-downloader/scan"
 	"strings"
 )
 
@@ -19,18 +20,12 @@ type Flags struct {
 	WaitMax    int
 }
 
-var (
-	galleryTypes = []string{
-		"AnchorHREF",
-	}
-)
-
 func loadFlags() Flags {
 	flags := Flags{}
 	flag.StringVar(&flags.ConfigFile, "config", "config.json", "configuration file")
 	flag.StringVar(&flags.Source, "source", "", "source HTML gallery")
 	flag.StringVar(&flags.Base, "base", "", "base URL when downloading relative images")
-	flag.StringVar(&flags.Type, "type", galleryTypes[0], "type of gallery ("+strings.Join(galleryTypes, ", ")+")")
+	flag.StringVar(&flags.Type, "type", scan.AvailableGalleryScanners[0], "type of gallery ("+strings.Join(scan.AvailableGalleryScanners[:], ", ")+")")
 	flag.StringVar(&flags.Output, "output", "", "output folder to store pictures")
 	flag.StringVar(&flags.Referer, "referer", "", "referer header for HTML file, or for downloading images from a local HTML file")
 	flag.StringVar(&flags.User, "user", "", "user (if the http server needs basic authentication)")
