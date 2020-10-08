@@ -103,29 +103,47 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 		log.Fatalf("Error: cannot open HTML source file: %v", err)
 	}
 	defer sourcefile.Close()
-	pictures := scanPictures(sourcefile, flags)
+	buffer, err := ioutil.ReadAll(sourcefile)
+	if err != nil {
+		log.Fatalf("cannot read gallery file: %s", err)
+	}
+	generator := scan.GeneratedBy(buffer)
+	if generator != "" {
+		log.Printf("detected gallery generator: '%s'", generator)
+	}
+	pictures := scanPictures(bytes.NewReader(buffer), flags)
 	if pictures == nil || len(pictures) == 0 {
 		log.Println("No picture found in the HTML source!")
 	}
 
-	downloadConfig := NewDownloadConfig(baseURL, flags.Referer, flags.User, flags.Password, flags.Output, browserConfig, flags.WaitMin, flags.WaitMax)
+	downloadConfig := NewDownloadConfig(baseURL, flags.Referer, flags.User, flags.Password, flags.Output, browserConfig, flags.WaitMin, flags.WaitMax, flags.InsecureTLS)
 	downloadPictures(pictures, downloadConfig)
 }
 
 func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserConfig config.Browser) {
 	// We need to download the remote HTML file
-	downloadConfig := NewDownloadConfig(nil, flags.Referer, flags.User, flags.Password, "", browserConfig, 0, 0)
+	downloadConfig := NewDownloadConfig(nil, flags.Referer, flags.User, flags.Password, "", browserConfig, 0, 0, flags.InsecureTLS)
 	buffer, err := downloadHTML(flags.Source, downloadConfig)
 	if err != nil {
 		log.Fatalf("Error: cannot download HTML source file: %v", err)
 	}
+	generator := scan.GeneratedBy(buffer)
+	if generator != "" {
+		log.Printf("detected gallery generator: '%s'", generator)
+	}
 	pictures := scanPictures(bytes.NewReader(buffer), flags)
 	if pictures == nil || len(pictures) == 0 {
 		ioutil.WriteFile(path.Join(flags.Output, "index.html"), buffer, 0644)
-		log.Println("No picture found in the HTML source. HTML file saved.")
+		log.Println("No picture found in the HTML source. HTML file saved as index.html")
 	}
 
-	downloadConfig = NewDownloadConfig(sourceURL, flags.Source, flags.User, flags.Password, flags.Output, browserConfig, flags.WaitMin, flags.WaitMax)
+	// update existing download config to keep the http.Client already created
+	// downloadConfig = NewDownloadConfig(sourceURL, flags.Source, flags.User, flags.Password, flags.Output, browserConfig, flags.WaitMin, flags.WaitMax)
+	downloadConfig.BaseURL = sourceURL
+	downloadConfig.Referer = flags.Source
+	downloadConfig.Output = flags.Output
+	downloadConfig.WaitMin = flags.WaitMin
+	downloadConfig.WaitMax = flags.WaitMax
 	downloadPictures(pictures, downloadConfig)
 }
 
@@ -134,7 +152,6 @@ func scanPictures(source io.ReadSeeker, flags Flags) []string {
 	var pictures []string
 	log.Printf("using gallery scanner: %s", flags.Type)
 	for _, scanner := range scan.GalleryScanners[flags.Type] {
-		source.Seek(0, 0)
 		pictures, err = scanner(source)
 		if err != nil {
 			log.Fatalf("Error: cannot parse HTML source file: %v", err)
@@ -142,6 +159,11 @@ func scanPictures(source io.ReadSeeker, flags Flags) []string {
 		if len(pictures) > 1 {
 			// no need to try another one
 			return pictures
+		}
+		// rewind source stream
+		_, err = source.Seek(0, io.SeekStart)
+		if err != nil {
+			log.Fatalf("cannot rewind stream: %s", err)
 		}
 	}
 	return pictures

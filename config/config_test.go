@@ -4,35 +4,53 @@ import (
 	"bytes"
 	"io/ioutil"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+var configSource = `{
+	"browser": {
+		"default": {
+			"headers": {
+				"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:81.0) Gecko/20100101 Firefox/81.0",
+				"Accept-Language": "en-GB,en;q=0.5",
+				"DNT": "1",
+				"Upgrade-Insecure-Requests": "1"
+			}
+		},
+		"http": {
+			"headers": {
+				"Accept-Encoding": "gzip, deflate",
+				"Connection": "keep-alive"
+			}
+		},
+		"https": {
+			"headers": {
+				"Accept-Encoding": "gzip, deflate, br"
+			}
+		},
+		"http2": {
+			"headers": {
+				"Accept-Encoding": "gzip, deflate, br",
+				"TE": "Trailers"
+			}
+		},
+		"html": {
+			"headers": {
+				"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+			}
+		},
+		"picture": {
+			"headers": {
+				"Accept": "image/webp,*/*"
+			}
+		}
+	}
+}`
 
 func TestLoadConfiguration(t *testing.T) {
 	var err error
-	configSource := `{
-		"browser": {
-			"userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:74.0) Gecko/20100101 Firefox/74.0",
-			"html": {
-				"headers": {
-					"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-					"Accept-Encoding": "gzip, deflate, br",
-					"Accept-Language": "en-GB,en;q=0.5",
-					"Connection": "keep-alive",
-					"DNT": "1",
-					"Upgrade-Insecure-Requests": "1"
-				}
-			},
-			"picture": {
-				"headers": {
-					"Accept": "image/webp,*/*",
-					"Accept-Encoding": "gzip, deflate, br",
-					"Accept-Language": "en-GB,en;q=0.5",
-					"Connection": "keep-alive",
-					"DNT": "1",
-					"TE": "Trailers"
-				}
-			}
-		}
-	}`
 
 	reader := ioutil.NopCloser(bytes.NewReader([]byte(configSource)))
 	cfg, err := loadConfiguration(reader)
@@ -41,33 +59,25 @@ func TestLoadConfiguration(t *testing.T) {
 		return
 	}
 
-	if cfg.Browser.UserAgent == "" {
-		t.Error("'userAgent' should not be empty")
-	}
+	require.NotEmpty(t, cfg)
+	require.NotEmpty(t, cfg.Browser)
 
-	if cfg.Browser.HTML.Headers == nil {
-		t.Error("headers configuration not found in section 'html'")
-	}
-	if len(cfg.Browser.HTML.Headers) != 6 {
-		t.Errorf("'html' section should declare %d headers, but %d found", 6, len(cfg.Browser.HTML.Headers))
-	}
-	value, found := cfg.Browser.HTML.Headers["Upgrade-Insecure-Requests"]
-	if !found {
-		t.Error("'Upgrade-Insecure-Requests' header not found in 'html' section")
-	} else if value != "1" {
-		t.Errorf("'Upgrade-Insecure-Requests' header expected value '1' but found %s", value)
-	}
+	require.NotEmpty(t, cfg.Browser.Default)
+	require.NotEmpty(t, cfg.Browser.HTTP)
+	require.NotEmpty(t, cfg.Browser.HTTPS)
+	require.NotEmpty(t, cfg.Browser.HTTP2)
+	require.NotEmpty(t, cfg.Browser.HTML)
+	require.NotEmpty(t, cfg.Browser.Picture)
 
-	if cfg.Browser.Picture.Headers == nil {
-		t.Error("headers configuration not found in section 'picture'")
-	}
-	if len(cfg.Browser.Picture.Headers) != 6 {
-		t.Errorf("'picture' section should declare %d headers, but %d found", 6, len(cfg.Browser.HTML.Headers))
-	}
-	value, found = cfg.Browser.Picture.Headers["DNT"]
-	if !found {
-		t.Error("'DNT' header not found in 'picture' section")
-	} else if value != "1" {
-		t.Errorf("'DNT' header expected value '1' but found %s", value)
-	}
+	require.NotEmpty(t, cfg.Browser.Default.Headers)
+	require.NotEmpty(t, cfg.Browser.HTTP.Headers)
+	require.NotEmpty(t, cfg.Browser.HTTPS.Headers)
+	require.NotEmpty(t, cfg.Browser.HTTP2.Headers)
+	require.NotEmpty(t, cfg.Browser.HTML.Headers)
+	require.NotEmpty(t, cfg.Browser.Picture.Headers)
+
+	// Check a few random values
+	assert.NotEmpty(t, cfg.Browser.Default.Headers["User-Agent"])
+	assert.NotEmpty(t, cfg.Browser.HTTP.Headers["Accept-Encoding"])
+	assert.NotEmpty(t, cfg.Browser.HTML.Headers["Accept"])
 }

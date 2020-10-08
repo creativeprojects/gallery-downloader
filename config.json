@@ -1,25 +1,39 @@
 {
-    "browser": {
-        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:81.0) Gecko/20100101 Firefox/81.0",
-        "html": {
-            "headers": {
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Accept-Language": "en-GB,en;q=0.5",
-                "Connection": "keep-alive",
-                "DNT": "1",
-                "Upgrade-Insecure-Requests": "1"
-            }
-        },
-        "picture": {
-            "headers": {
-                "Accept": "image/webp,*/*",
-                "Accept-Encoding": "gzip, deflate, br",
-                "Accept-Language": "en-GB,en;q=0.5",
-                "Connection": "keep-alive",
-                "DNT": "1",
-                "TE": "Trailers"
-            }
-        }
-    }
+	"browser": {
+		"default": {
+			"headers": {
+				"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:81.0) Gecko/20100101 Firefox/81.0",
+				"Accept-Language": "en-GB,en;q=0.5",
+				"DNT": "1",
+				"Upgrade-Insecure-Requests": "1"
+			}
+		},
+		"http": {
+			"headers": {
+				"Accept-Encoding": "gzip, deflate",
+				"Connection": "keep-alive"
+			}
+		},
+		"https": {
+			"headers": {
+				"Accept-Encoding": "gzip, deflate, br"
+			}
+		},
+		"http2": {
+			"headers": {
+				"Accept-Encoding": "gzip, deflate, br",
+				"TE": "Trailers"
+			}
+		},
+		"html": {
+			"headers": {
+				"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
+			}
+		},
+		"picture": {
+			"headers": {
+				"Accept": "image/webp,*/*"
+			}
+		}
+	}
 }

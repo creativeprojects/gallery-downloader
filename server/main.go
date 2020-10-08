@@ -3,11 +3,14 @@ package main
 import (
 	"compress/gzip"
 	"flag"
+	"fmt"
 	"gallery-downloader/config"
+	"gallery-downloader/headers"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"path"
 	"strings"
 )
@@ -23,10 +26,15 @@ func (w gzipResponseWriter) Write(b []byte) (int, error) {
 
 func main() {
 	var err error
-	var configFile, root, port string
+	var configFile, root, httpPort, httpsPort, certFile, keyFile string
+	var verbose bool
 	flag.StringVar(&configFile, "config", "config.json", "client configuration file, used to compare http headers")
 	flag.StringVar(&root, "root", "", "root where to serve your files from")
-	flag.StringVar(&port, "port", "3000", "TCP port")
+	flag.StringVar(&httpPort, "http", "3000", "TCP port for HTTP requests")
+	flag.StringVar(&httpsPort, "https", "3001", "TCP port for HTTPS requests")
+	flag.StringVar(&certFile, "cert", "cert/localhost.cert.pem", "certificate to serve HTTPS requests")
+	flag.StringVar(&keyFile, "key", "cert/localhost.key.pem", "private key to serve HTTPS requests")
+	flag.BoolVar(&verbose, "v", false, "display debugging information (mostly HTTP request headers)")
 	flag.Parse()
 
 	root = path.Clean(root)
@@ -42,9 +50,10 @@ func main() {
 
 	log.Printf("Serving files from '%s' (use -root option to change the default)", root)
 	fs := http.FileServer(http.Dir(root))
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s - %s - %s", r.Method, r.RequestURI, r.Referer())
-		checkRequest(cfg.Browser, r)
+
+	handleRequest := func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s - %s - %s - %s", r.Proto, r.Method, r.RequestURI, r.Referer())
+		checkRequest(cfg.Browser, r, verbose)
 
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 			fs.ServeHTTP(w, r)
@@ -55,33 +64,56 @@ func main() {
 		defer gz.Close()
 		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
 		fs.ServeHTTP(gzw, r)
-	})
-
-	log.Printf("Listening on :%s (use -port to change the default)...", port)
-	err = http.ListenAndServe(":"+port, nil)
-	if err != nil {
-		log.Fatal(err)
 	}
+
+	http.HandleFunc("/", handleRequest)
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, os.Kill)
+
+	log.Printf("HTTP: listening on :%s (use -http to change the default port)...", httpPort)
+	go func() {
+		err = http.ListenAndServe(":"+httpPort, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	if certFile != "" && keyFile != "" && httpsPort != "" {
+		log.Printf("HTTPS: listening on :%s (use -https to change the default port)...", httpsPort)
+		go func() {
+			err = http.ListenAndServeTLS(":"+httpsPort, certFile, keyFile, nil)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}()
+	}
+
+	<-stop
+	fmt.Println("")
 }
 
-func checkRequest(cfg config.Browser, request *http.Request) {
+func checkRequest(cfg config.Browser, request *http.Request, verbose bool) {
 	// check user-agent
-	if cfg.UserAgent != request.UserAgent() {
+	if cfg.Default.Headers[headers.UserAgent] != request.UserAgent() {
 		log.Printf("WARNING: change user-agent in configuration for: '%s'", request.UserAgent())
 	}
 
 	// then check http headers
 	if strings.HasSuffix(request.URL.Path, "html") {
-		checkHeader(cfg.HTML, request.Header)
+		checkHeader(cfg.HTML, request.Header, verbose)
 		return
 	}
 	if strings.HasSuffix(request.URL.Path, "jpg") {
-		checkHeader(cfg.Picture, request.Header)
+		checkHeader(cfg.Picture, request.Header, verbose)
 		return
 	}
 }
 
-func checkHeader(cfg config.Element, headers http.Header) {
-	// headers.Write(os.Stdout)
-	// fmt.Println("")
+func checkHeader(cfg config.Group, headers http.Header, verbose bool) {
+	if !verbose {
+		return
+	}
+	headers.Write(os.Stdout)
+	fmt.Println("")
 }

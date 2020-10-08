@@ -2,11 +2,14 @@ package main
 
 import (
 	"compress/gzip"
+	"crypto/tls"
 	"fmt"
 	"gallery-downloader/config"
+	"gallery-downloader/headers"
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -28,9 +31,29 @@ type DownloadConfig struct {
 }
 
 // NewDownloadConfig creates a new DownloadConfig with an http client
-func NewDownloadConfig(baseURL *url.URL, referer, user, password, output string, browser config.Browser, waitMin, waitMax int) DownloadConfig {
+func NewDownloadConfig(baseURL *url.URL, referer, user, password, output string, browser config.Browser, waitMin, waitMax int, insecureTLS bool) DownloadConfig {
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: insecureTLS,
+	}
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       tlsConfig,
+	}
+
 	return DownloadConfig{
-		Client:   &http.Client{},
+		Client: &http.Client{
+			Transport: transport,
+		},
 		BaseURL:  baseURL,
 		Referer:  referer,
 		Browser:  browser,
@@ -100,6 +123,11 @@ func downloadPictures(pictures []string, downloadConfig DownloadConfig) error {
 			fmt.Printf(" failed: %v", err)
 		} else {
 			fmt.Printf(" loaded %d bytes", size)
+			if size == 0 {
+				// no need to keep an empty file
+				fmt.Printf(" (not saved)")
+				_ = os.Remove(output)
+			}
 			if downloadConfig.WaitMax > 0 && downloadConfig.WaitMax > downloadConfig.WaitMin {
 				wait := rand.Intn(downloadConfig.WaitMax - downloadConfig.WaitMin)
 				fmt.Printf(" and wait %dms", wait+downloadConfig.WaitMin)
@@ -137,7 +165,16 @@ func downloadPicture(picture, output string, downloadConfig DownloadConfig) (int
 		}
 		defer outputFile.Close()
 
-		size, err := io.Copy(outputFile, response.Body)
+		// images shouldn't come back gzip encoded, but we never know
+		reader := response.Body
+		if response.Header.Get("Content-Encoding") == "gzip" {
+			reader, err = gzip.NewReader(response.Body)
+			if err != nil {
+				return 0, err
+			}
+		}
+
+		size, err := io.Copy(outputFile, reader)
 		if err != nil {
 			return size, err
 		}
@@ -147,24 +184,37 @@ func downloadPicture(picture, output string, downloadConfig DownloadConfig) (int
 }
 
 func setHTMLDownloadHeaders(request *http.Request, downloadConfig DownloadConfig) {
+	setCommonHeaders(request, downloadConfig)
 	for name, value := range downloadConfig.Browser.HTML.Headers {
 		request.Header.Set(name, value)
 	}
-	setCommonHeaders(request, downloadConfig)
 }
 
 func setPictureDownloadHeaders(request *http.Request, downloadConfig DownloadConfig) {
+	setCommonHeaders(request, downloadConfig)
 	for name, value := range downloadConfig.Browser.Picture.Headers {
 		request.Header.Set(name, value)
 	}
-	setCommonHeaders(request, downloadConfig)
 }
 
 func setCommonHeaders(request *http.Request, downloadConfig DownloadConfig) {
-	if downloadConfig.Referer != "" {
-		request.Header.Set("Referer", downloadConfig.Referer)
+	for name, value := range downloadConfig.Browser.Default.Headers {
+		request.Header.Set(name, value)
 	}
-	request.Header.Set("User-Agent", downloadConfig.Browser.UserAgent)
+
+	if request.URL.Scheme == "http" {
+		for name, value := range downloadConfig.Browser.HTTP.Headers {
+			request.Header.Set(name, value)
+		}
+	} else if request.URL.Scheme == "https" {
+		for name, value := range downloadConfig.Browser.HTTPS.Headers {
+			request.Header.Set(name, value)
+		}
+	}
+
+	if downloadConfig.Referer != "" {
+		request.Header.Set(headers.Referer, downloadConfig.Referer)
+	}
 
 	if downloadConfig.User != "" && downloadConfig.Password != "" {
 		request.SetBasicAuth(downloadConfig.User, downloadConfig.Password)

@@ -13,13 +13,16 @@ type Configuration struct {
 
 // Browser contains all browser configuration
 type Browser struct {
-	UserAgent string  `json:"userAgent"`
-	HTML      Element `json:"html"`
-	Picture   Element `json:"picture"`
+	Default Group `json:"default"`
+	HTTP    Group `json:"http"`
+	HTTPS   Group `json:"https"`
+	HTTP2   Group `json:"http2"`
+	HTML    Group `json:"html"`
+	Picture Group `json:"picture"`
 }
 
-// Element contains browser configuration for each element (html, picture, etc.)
-type Element struct {
+// Group contains browser configuration for each element (html, picture, etc.)
+type Group struct {
 	Headers map[string]string `json:"headers"`
 }
 
