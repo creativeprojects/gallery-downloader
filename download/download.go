@@ -9,6 +9,7 @@ import (
 	"gallery-downloader/headers"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net"
 	"net/http"
@@ -24,6 +25,12 @@ var (
 	client    *http.Client
 )
 
+type job struct {
+	picture string
+	index   int
+	total   int
+}
+
 // Config contains the configuration to download http files
 type Config struct {
 	Browser       config.Browser
@@ -34,7 +41,7 @@ type Config struct {
 	Output        string
 	WaitMin       int
 	WaitMax       int
-	Parallell     int
+	Parallel      int
 	SkipVerifyTLS bool
 	Progress      func(Progress)
 }
@@ -109,104 +116,136 @@ func (c *Context) HTML(link string) ([]byte, error) {
 }
 
 // Pictures downloads a list of pictures
-func (c *Context) Pictures(pictures []string) error {
+func (c *Context) Pictures(pictures []string) {
 	total := len(pictures)
+	if c.cfg.Parallel < 2 {
+		// simple case of synchronous download
+		for index, picture := range pictures {
+			c.picture(picture, index, total)
+		}
+		return
+	}
+
+	jobs := make(chan job, total)
+	results := make(chan interface{}, total)
+
+	for w := 1; w <= c.cfg.Parallel; w++ {
+		go c.pictureWorker(w, jobs, results)
+	}
+
 	for index, picture := range pictures {
-		pictureURL, err := url.Parse(picture)
-		if err != nil {
-			if c.cfg.Progress != nil {
-				c.cfg.Progress(Progress{
-					FileID:     index,
-					TotalFiles: total,
-					Event:      EventError,
-					Err:        fmt.Errorf("invalid picture URL: %w", err),
-				})
-			}
-			continue
+		jobs <- job{picture, index, total}
+	}
+	close(jobs)
+
+	// get all results (could also do with a waitgroup)
+	for a := 1; a <= total; a++ {
+		<-results
+	}
+}
+
+func (c *Context) pictureWorker(id int, jobs <-chan job, results chan<- interface{}) {
+	log.Printf("creating worker %d", id)
+	for j := range jobs {
+		c.picture(j.picture, j.index, j.total)
+		results <- nil
+	}
+	log.Printf("worker %d finished", id)
+}
+
+func (c *Context) picture(picture string, index, total int) {
+	pictureURL, err := url.Parse(picture)
+	if err != nil {
+		if c.cfg.Progress != nil {
+			c.cfg.Progress(Progress{
+				FileID:     index,
+				TotalFiles: total,
+				Event:      EventError,
+				Err:        fmt.Errorf("invalid picture URL: %w", err),
+			})
 		}
-		if !pictureURL.IsAbs() {
-			if c.cfg.BaseURL == nil || c.cfg.BaseURL.String() == "" {
-				if c.cfg.Progress != nil {
-					c.cfg.Progress(Progress{
-						FileID:     index,
-						TotalFiles: total,
-						URL:        pictureURL.String(),
-						Event:      EventError,
-						Err:        errors.New("cannot load picture: its URL is relative and no -base flag was given"),
-					})
-				}
-				continue
-			}
-			pictureURL = joinURL(c.cfg.BaseURL, pictureURL)
-		}
-		pictureName := path.Base(pictureURL.Path)
-		if pictureName == "" || pictureName == "/" {
+		return
+	}
+	if !pictureURL.IsAbs() {
+		if c.cfg.BaseURL == nil || c.cfg.BaseURL.String() == "" {
 			if c.cfg.Progress != nil {
 				c.cfg.Progress(Progress{
 					FileID:     index,
 					TotalFiles: total,
 					URL:        pictureURL.String(),
 					Event:      EventError,
-					Err:        fmt.Errorf("cannot determine picture name from path '%s'", pictureURL.Path),
+					Err:        errors.New("cannot load picture: its URL is relative and no -base flag was given"),
 				})
 			}
-			continue
+			return
 		}
+		pictureURL = joinURL(c.cfg.BaseURL, pictureURL)
+	}
+	pictureName := path.Base(pictureURL.Path)
+	if pictureName == "" || pictureName == "/" {
 		if c.cfg.Progress != nil {
 			c.cfg.Progress(Progress{
 				FileID:     index,
 				TotalFiles: total,
 				URL:        pictureURL.String(),
-				Event:      EventStart,
+				Event:      EventError,
+				Err:        fmt.Errorf("cannot determine picture name from path '%s'", pictureURL.Path),
 			})
 		}
-		output := uniqueName(path.Join(c.cfg.Output, pictureName))
-		size, err := c.picture(pictureURL.String(), output)
-		if err != nil {
-			if c.cfg.Progress != nil {
-				c.cfg.Progress(Progress{
-					FileID:     index,
-					TotalFiles: total,
-					URL:        pictureURL.String(),
-					Event:      EventError,
-					Err:        err,
-				})
-			}
-		} else {
-			progress := Progress{
+		return
+	}
+	if c.cfg.Progress != nil {
+		c.cfg.Progress(Progress{
+			FileID:     index,
+			TotalFiles: total,
+			URL:        pictureURL.String(),
+			Event:      EventStart,
+		})
+	}
+	output := uniqueName(path.Join(c.cfg.Output, pictureName))
+	size, err := c.downloadPicture(pictureURL.String(), output)
+	if err != nil {
+		if c.cfg.Progress != nil {
+			c.cfg.Progress(Progress{
 				FileID:     index,
 				TotalFiles: total,
 				URL:        pictureURL.String(),
-				Event:      EventFinished,
-				Downloaded: size,
+				Event:      EventError,
+				Err:        err,
+			})
+		}
+	} else {
+		progress := Progress{
+			FileID:     index,
+			TotalFiles: total,
+			URL:        pictureURL.String(),
+			Event:      EventFinished,
+			Downloaded: size,
+		}
+		if size == 0 {
+			// no need to keep an empty file
+			progress.Event = EventNotSaving
+			_ = os.Remove(output)
+		}
+		if c.cfg.WaitMax > 0 && c.cfg.WaitMax > c.cfg.WaitMin {
+			wait := rand.Intn(c.cfg.WaitMax - c.cfg.WaitMin)
+			progress.Wait = wait + c.cfg.WaitMin
+			// now send the complete progress report
+			if c.cfg.Progress != nil {
+				c.cfg.Progress(progress)
 			}
-			if size == 0 {
-				// no need to keep an empty file
-				progress.Event = EventNotSaving
-				_ = os.Remove(output)
-			}
-			if c.cfg.WaitMax > 0 && c.cfg.WaitMax > c.cfg.WaitMin {
-				wait := rand.Intn(c.cfg.WaitMax - c.cfg.WaitMin)
-				progress.Wait = wait + c.cfg.WaitMin
-				// now send the complete progress report
-				if c.cfg.Progress != nil {
-					c.cfg.Progress(progress)
-				}
-				// and wait
-				time.Sleep(time.Duration(wait+c.cfg.WaitMin) * time.Millisecond)
-			} else {
-				// now send the complete progress report
-				if c.cfg.Progress != nil {
-					c.cfg.Progress(progress)
-				}
+			// and wait
+			time.Sleep(time.Duration(wait+c.cfg.WaitMin) * time.Millisecond)
+		} else {
+			// now send the complete progress report
+			if c.cfg.Progress != nil {
+				c.cfg.Progress(progress)
 			}
 		}
 	}
-
-	return nil
 }
 
-func (c *Context) picture(picture, output string) (int64, error) {
+func (c *Context) downloadPicture(picture, output string) (int64, error) {
 	request, err := http.NewRequest("GET", picture, nil)
 	if err != nil {
 		return 0, err

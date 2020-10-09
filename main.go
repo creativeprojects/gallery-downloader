@@ -136,7 +136,7 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 		WaitMin:       flags.WaitMin,
 		WaitMax:       flags.WaitMax,
 		SkipVerifyTLS: flags.InsecureTLS,
-		Parallell:     flags.Parallel,
+		Parallel:      flags.Parallel,
 		Progress:      handleProgress,
 	})
 	downloadContext.Pictures(pictures)
@@ -176,7 +176,7 @@ func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserC
 		Output:        flags.Output,
 		WaitMin:       flags.WaitMin,
 		WaitMax:       flags.WaitMax,
-		Parallell:     flags.Parallel,
+		Parallel:      flags.Parallel,
 		Progress:      handleProgress,
 	})
 	downloadContext.Pictures(pictures)

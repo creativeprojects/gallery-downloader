@@ -151,7 +151,7 @@ func TestDownloadPictureNoAuthorization(t *testing.T) {
 		Referer: "test://referer",
 		Browser: testBrowserConfiguration,
 	})
-	size, err := download.picture(ts.URL, "")
+	size, err := download.downloadPicture(ts.URL, "")
 	if err != nil {
 		t.Fatalf("downloadPicture returned an error: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestDownloadPictureWithAuthorization(t *testing.T) {
 		User:     "myuser",
 		Password: "mypassword",
 	})
-	size, err := download.picture(ts.URL, "")
+	size, err := download.downloadPicture(ts.URL, "")
 	if err != nil {
 		t.Fatalf("downloadPicture returned an error: %v", err)
 	}
