@@ -1,4 +1,4 @@
-package main
+package download
 
 import (
 	"fmt"
@@ -124,7 +124,7 @@ func TestDownloadHTMLNoAuthorization(t *testing.T) {
 
 	download := NewDownloadConfig(nil, "test://referer", "", "", "", testBrowserConfiguration, 0, 0, false)
 	download.Client = ts.Client()
-	buffer, err := downloadHTML(ts.URL, download)
+	buffer, err := DownloadHTML(ts.URL, download)
 	if err != nil {
 		t.Fatalf("downloadHTML returned an error: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestDownloadHTMLwithHTTP(t *testing.T) {
 
 	download := NewDownloadConfig(nil, "test://referer", "", "", "", testBrowserConfiguration, 0, 0, false)
 	download.Client = ts.Client()
-	buffer, err := downloadHTML(ts.URL, download)
+	buffer, err := DownloadHTML(ts.URL, download)
 	if err != nil {
 		t.Fatalf("downloadHTML returned an error: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestDownloadHTMLwithHTTPS(t *testing.T) {
 
 	download := NewDownloadConfig(nil, "test://referer", "", "", "", testBrowserConfiguration, 0, 0, false)
 	download.Client = ts.Client()
-	buffer, err := downloadHTML(ts.URL, download)
+	buffer, err := DownloadHTML(ts.URL, download)
 	if err != nil {
 		t.Fatalf("downloadHTML returned an error: %v", err)
 	}

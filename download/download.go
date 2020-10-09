@@ -1,4 +1,4 @@
-package main
+package download
 
 import (
 	"compress/gzip"
@@ -65,7 +65,7 @@ func NewDownloadConfig(baseURL *url.URL, referer, user, password, output string,
 	}
 }
 
-func downloadHTML(link string, downloadConfig DownloadConfig) ([]byte, error) {
+func DownloadHTML(link string, downloadConfig DownloadConfig) ([]byte, error) {
 	request, err := http.NewRequest("GET", link, nil)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func downloadHTML(link string, downloadConfig DownloadConfig) ([]byte, error) {
 	return nil, fmt.Errorf("HTTP %s", response.Status)
 }
 
-func downloadPictures(pictures []string, downloadConfig DownloadConfig) error {
+func DownloadPictures(pictures []string, downloadConfig DownloadConfig) error {
 	total := len(pictures)
 	for index, picture := range pictures {
 		fmt.Printf("\n(%d/%d) ", index+1, total)

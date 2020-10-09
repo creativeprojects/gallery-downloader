@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"gallery-downloader/config"
+	"gallery-downloader/download"
 	"gallery-downloader/scan"
 	"io"
 	"io/ioutil"
@@ -116,14 +117,14 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 		log.Println("No picture found in the HTML source!")
 	}
 
-	downloadConfig := NewDownloadConfig(baseURL, flags.Referer, flags.User, flags.Password, flags.Output, browserConfig, flags.WaitMin, flags.WaitMax, flags.InsecureTLS)
-	downloadPictures(pictures, downloadConfig)
+	downloadConfig := download.NewDownloadConfig(baseURL, flags.Referer, flags.User, flags.Password, flags.Output, browserConfig, flags.WaitMin, flags.WaitMax, flags.InsecureTLS)
+	download.DownloadPictures(pictures, downloadConfig)
 }
 
 func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserConfig config.Browser) {
 	// We need to download the remote HTML file
-	downloadConfig := NewDownloadConfig(nil, flags.Referer, flags.User, flags.Password, "", browserConfig, 0, 0, flags.InsecureTLS)
-	buffer, err := downloadHTML(flags.Source, downloadConfig)
+	downloadConfig := download.NewDownloadConfig(nil, flags.Referer, flags.User, flags.Password, "", browserConfig, 0, 0, flags.InsecureTLS)
+	buffer, err := download.DownloadHTML(flags.Source, downloadConfig)
 	if err != nil {
 		log.Fatalf("Error: cannot download HTML source file: %v", err)
 	}
@@ -144,7 +145,7 @@ func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserC
 	downloadConfig.Output = flags.Output
 	downloadConfig.WaitMin = flags.WaitMin
 	downloadConfig.WaitMax = flags.WaitMax
-	downloadPictures(pictures, downloadConfig)
+	download.DownloadPictures(pictures, downloadConfig)
 }
 
 func scanPictures(source io.ReadSeeker, flags Flags) []string {
