@@ -117,14 +117,31 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 		log.Println("No picture found in the HTML source!")
 	}
 
-	downloadConfig := download.NewDownloadConfig(baseURL, flags.Referer, flags.User, flags.Password, flags.Output, browserConfig, flags.WaitMin, flags.WaitMax, flags.InsecureTLS)
-	download.DownloadPictures(pictures, downloadConfig)
+	downloadContext := download.NewContext(download.Config{
+		BaseURL:       baseURL,
+		Referer:       flags.Referer,
+		User:          flags.User,
+		Password:      flags.Password,
+		Output:        flags.Output,
+		Browser:       browserConfig,
+		WaitMin:       flags.WaitMin,
+		WaitMax:       flags.WaitMax,
+		SkipVerifyTLS: flags.InsecureTLS,
+		Parallell:     flags.Parallel,
+	})
+	downloadContext.Pictures(pictures)
 }
 
 func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserConfig config.Browser) {
 	// We need to download the remote HTML file
-	downloadConfig := download.NewDownloadConfig(nil, flags.Referer, flags.User, flags.Password, "", browserConfig, 0, 0, flags.InsecureTLS)
-	buffer, err := download.DownloadHTML(flags.Source, downloadConfig)
+	downloadContext := download.NewContext(download.Config{
+		Referer:       flags.Referer,
+		User:          flags.User,
+		Password:      flags.Password,
+		Browser:       browserConfig,
+		SkipVerifyTLS: flags.InsecureTLS,
+	})
+	buffer, err := downloadContext.HTML(flags.Source)
 	if err != nil {
 		log.Fatalf("Error: cannot download HTML source file: %v", err)
 	}
@@ -138,14 +155,19 @@ func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserC
 		log.Println("No picture found in the HTML source. HTML file saved as index.html")
 	}
 
-	// update existing download config to keep the http.Client already created
-	// downloadConfig = NewDownloadConfig(sourceURL, flags.Source, flags.User, flags.Password, flags.Output, browserConfig, flags.WaitMin, flags.WaitMax)
-	downloadConfig.BaseURL = sourceURL
-	downloadConfig.Referer = flags.Source
-	downloadConfig.Output = flags.Output
-	downloadConfig.WaitMin = flags.WaitMin
-	downloadConfig.WaitMax = flags.WaitMax
-	download.DownloadPictures(pictures, downloadConfig)
+	downloadContext = download.NewContext(download.Config{
+		User:          flags.User,
+		Password:      flags.Password,
+		Browser:       browserConfig,
+		SkipVerifyTLS: flags.InsecureTLS,
+		BaseURL:       sourceURL,
+		Referer:       flags.Source,
+		Output:        flags.Output,
+		WaitMin:       flags.WaitMin,
+		WaitMax:       flags.WaitMax,
+		Parallell:     flags.Parallel,
+	})
+	downloadContext.Pictures(pictures)
 }
 
 func scanPictures(source io.ReadSeeker, flags Flags) []string {

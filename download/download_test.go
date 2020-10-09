@@ -122,9 +122,11 @@ func TestDownloadHTMLNoAuthorization(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	download := NewDownloadConfig(nil, "test://referer", "", "", "", testBrowserConfiguration, 0, 0, false)
-	download.Client = ts.Client()
-	buffer, err := DownloadHTML(ts.URL, download)
+	download := NewContext(Config{
+		Referer: "test://referer",
+		Browser: testBrowserConfiguration,
+	})
+	buffer, err := download.HTML(ts.URL)
 	if err != nil {
 		t.Fatalf("downloadHTML returned an error: %v", err)
 	}
@@ -145,9 +147,11 @@ func TestDownloadPictureNoAuthorization(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	download := NewDownloadConfig(nil, "test://referer", "", "", "", testBrowserConfiguration, 0, 0, false)
-	download.Client = ts.Client()
-	size, err := downloadPicture(ts.URL, "", download)
+	download := NewContext(Config{
+		Referer: "test://referer",
+		Browser: testBrowserConfiguration,
+	})
+	size, err := download.picture(ts.URL, "")
 	if err != nil {
 		t.Fatalf("downloadPicture returned an error: %v", err)
 	}
@@ -168,9 +172,13 @@ func TestDownloadPictureWithAuthorization(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	download := NewDownloadConfig(nil, "test://referer", "myuser", "mypassword", "", testBrowserConfiguration, 0, 0, false)
-	download.Client = ts.Client()
-	size, err := downloadPicture(ts.URL, "", download)
+	download := NewContext(Config{
+		Referer:  "test://referer",
+		Browser:  testBrowserConfiguration,
+		User:     "myuser",
+		Password: "mypassword",
+	})
+	size, err := download.picture(ts.URL, "")
 	if err != nil {
 		t.Fatalf("downloadPicture returned an error: %v", err)
 	}
@@ -191,9 +199,11 @@ func TestDownloadHTMLwithHTTP(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	download := NewDownloadConfig(nil, "test://referer", "", "", "", testBrowserConfiguration, 0, 0, false)
-	download.Client = ts.Client()
-	buffer, err := DownloadHTML(ts.URL, download)
+	download := NewContext(Config{
+		Referer: "test://referer",
+		Browser: testBrowserConfiguration,
+	})
+	buffer, err := download.HTML(ts.URL)
 	if err != nil {
 		t.Fatalf("downloadHTML returned an error: %v", err)
 	}
@@ -214,9 +224,13 @@ func TestDownloadHTMLwithHTTPS(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	download := NewDownloadConfig(nil, "test://referer", "", "", "", testBrowserConfiguration, 0, 0, false)
-	download.Client = ts.Client()
-	buffer, err := DownloadHTML(ts.URL, download)
+	download := NewContext(Config{
+		Referer: "test://referer",
+		Browser: testBrowserConfiguration,
+	})
+	// use the httptest client with the test certificate
+	client = ts.Client()
+	buffer, err := download.HTML(ts.URL)
 	if err != nil {
 		t.Fatalf("downloadHTML returned an error: %v", err)
 	}

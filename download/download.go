@@ -17,62 +17,73 @@ import (
 	"time"
 )
 
-// DownloadConfig contains the configuration to download http files
-type DownloadConfig struct {
-	Client   *http.Client
-	BaseURL  *url.URL
-	Browser  config.Browser
-	Referer  string
-	User     string
-	Password string
-	Output   string
-	WaitMin  int
-	WaitMax  int
+// http client is global to the package, and instanciated on first use
+var (
+	transport *http.Transport
+	client    *http.Client
+)
+
+// Config contains the configuration to download http files
+type Config struct {
+	Browser       config.Browser
+	BaseURL       *url.URL
+	Referer       string
+	User          string
+	Password      string
+	Output        string
+	WaitMin       int
+	WaitMax       int
+	Parallell     int
+	SkipVerifyTLS bool
 }
 
-// NewDownloadConfig creates a new DownloadConfig with an http client
-func NewDownloadConfig(baseURL *url.URL, referer, user, password, output string, browser config.Browser, waitMin, waitMax int, insecureTLS bool) DownloadConfig {
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: insecureTLS,
-	}
-	transport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-			DualStack: true,
-		}).DialContext,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig:       tlsConfig,
-	}
+// Context contains the context to download http files
+type Context struct {
+	cfg Config
+}
 
-	return DownloadConfig{
-		Client: &http.Client{
+// NewContext creates a new Context with an http client.
+// Any subsequent call to NewContext keeps the same http.Client already created
+func NewContext(cfg Config) *Context {
+	if transport == nil || client == nil {
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: cfg.SkipVerifyTLS,
+		}
+		transport = &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+				DualStack: true,
+			}).DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			TLSClientConfig:       tlsConfig,
+		}
+		client = &http.Client{
 			Transport: transport,
-		},
-		BaseURL:  baseURL,
-		Referer:  referer,
-		Browser:  browser,
-		User:     user,
-		Password: password,
-		Output:   output,
-		WaitMin:  waitMin,
-		WaitMax:  waitMax,
+		}
+	} else {
+		transport.TLSClientConfig.InsecureSkipVerify = cfg.SkipVerifyTLS
+	}
+
+	return &Context{
+		cfg: cfg,
 	}
 }
 
-func DownloadHTML(link string, downloadConfig DownloadConfig) ([]byte, error) {
+// HTML downloads an HTML page
+func (c *Context) HTML(link string) ([]byte, error) {
 	request, err := http.NewRequest("GET", link, nil)
 	if err != nil {
 		return nil, err
 	}
-	setHTMLDownloadHeaders(request, downloadConfig)
+	c.setHTMLDownloadHeaders(request)
 
-	response, err := downloadConfig.Client.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +106,8 @@ func DownloadHTML(link string, downloadConfig DownloadConfig) ([]byte, error) {
 	return nil, fmt.Errorf("HTTP %s", response.Status)
 }
 
-func DownloadPictures(pictures []string, downloadConfig DownloadConfig) error {
+// Pictures downloads a list of pictures
+func (c *Context) Pictures(pictures []string) error {
 	total := len(pictures)
 	for index, picture := range pictures {
 		fmt.Printf("\n(%d/%d) ", index+1, total)
@@ -105,11 +117,11 @@ func DownloadPictures(pictures []string, downloadConfig DownloadConfig) error {
 			continue
 		}
 		if !pictureURL.IsAbs() {
-			if downloadConfig.BaseURL == nil || downloadConfig.BaseURL.String() == "" {
+			if c.cfg.BaseURL == nil || c.cfg.BaseURL.String() == "" {
 				fmt.Print("Error: cannot load picture: its URL is relative and no -base flag was given")
 				continue
 			}
-			pictureURL = joinURL(downloadConfig.BaseURL, pictureURL)
+			pictureURL = joinURL(c.cfg.BaseURL, pictureURL)
 		}
 		pictureName := path.Base(pictureURL.Path)
 		if pictureName == "" || pictureName == "/" {
@@ -117,8 +129,8 @@ func DownloadPictures(pictures []string, downloadConfig DownloadConfig) error {
 			continue
 		}
 		fmt.Printf("Loading %s...", pictureURL.String())
-		output := uniqueName(path.Join(downloadConfig.Output, pictureName))
-		size, err := downloadPicture(pictureURL.String(), output, downloadConfig)
+		output := uniqueName(path.Join(c.cfg.Output, pictureName))
+		size, err := c.picture(pictureURL.String(), output)
 		if err != nil {
 			fmt.Printf(" failed: %v", err)
 		} else {
@@ -128,10 +140,10 @@ func DownloadPictures(pictures []string, downloadConfig DownloadConfig) error {
 				fmt.Printf(" (not saved)")
 				_ = os.Remove(output)
 			}
-			if downloadConfig.WaitMax > 0 && downloadConfig.WaitMax > downloadConfig.WaitMin {
-				wait := rand.Intn(downloadConfig.WaitMax - downloadConfig.WaitMin)
-				fmt.Printf(" and wait %dms", wait+downloadConfig.WaitMin)
-				time.Sleep(time.Duration(wait+downloadConfig.WaitMin) * time.Millisecond)
+			if c.cfg.WaitMax > 0 && c.cfg.WaitMax > c.cfg.WaitMin {
+				wait := rand.Intn(c.cfg.WaitMax - c.cfg.WaitMin)
+				fmt.Printf(" and wait %dms", wait+c.cfg.WaitMin)
+				time.Sleep(time.Duration(wait+c.cfg.WaitMin) * time.Millisecond)
 			}
 		}
 	}
@@ -140,19 +152,19 @@ func DownloadPictures(pictures []string, downloadConfig DownloadConfig) error {
 	return nil
 }
 
-func downloadPicture(picture, output string, downloadConfig DownloadConfig) (int64, error) {
+func (c *Context) picture(picture, output string) (int64, error) {
 	request, err := http.NewRequest("GET", picture, nil)
 	if err != nil {
 		return 0, err
 	}
-	setPictureDownloadHeaders(request, downloadConfig)
+	c.setPictureDownloadHeaders(request)
 
 	// Output file
 	if output == "" {
 		output = os.DevNull
 	}
 
-	response, err := downloadConfig.Client.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return 0, err
 	}
@@ -183,40 +195,40 @@ func downloadPicture(picture, output string, downloadConfig DownloadConfig) (int
 	return 0, fmt.Errorf("HTTP %s", response.Status)
 }
 
-func setHTMLDownloadHeaders(request *http.Request, downloadConfig DownloadConfig) {
-	setCommonHeaders(request, downloadConfig)
-	for name, value := range downloadConfig.Browser.HTML.Headers {
+func (c *Context) setHTMLDownloadHeaders(request *http.Request) {
+	c.setCommonHeaders(request)
+	for name, value := range c.cfg.Browser.HTML.Headers {
 		request.Header.Set(name, value)
 	}
 }
 
-func setPictureDownloadHeaders(request *http.Request, downloadConfig DownloadConfig) {
-	setCommonHeaders(request, downloadConfig)
-	for name, value := range downloadConfig.Browser.Picture.Headers {
+func (c *Context) setPictureDownloadHeaders(request *http.Request) {
+	c.setCommonHeaders(request)
+	for name, value := range c.cfg.Browser.Picture.Headers {
 		request.Header.Set(name, value)
 	}
 }
 
-func setCommonHeaders(request *http.Request, downloadConfig DownloadConfig) {
-	for name, value := range downloadConfig.Browser.Default.Headers {
+func (c *Context) setCommonHeaders(request *http.Request) {
+	for name, value := range c.cfg.Browser.Default.Headers {
 		request.Header.Set(name, value)
 	}
 
 	if request.URL.Scheme == "http" {
-		for name, value := range downloadConfig.Browser.HTTP.Headers {
+		for name, value := range c.cfg.Browser.HTTP.Headers {
 			request.Header.Set(name, value)
 		}
 	} else if request.URL.Scheme == "https" {
-		for name, value := range downloadConfig.Browser.HTTPS.Headers {
+		for name, value := range c.cfg.Browser.HTTPS.Headers {
 			request.Header.Set(name, value)
 		}
 	}
 
-	if downloadConfig.Referer != "" {
-		request.Header.Set(headers.Referer, downloadConfig.Referer)
+	if c.cfg.Referer != "" {
+		request.Header.Set(headers.Referer, c.cfg.Referer)
 	}
 
-	if downloadConfig.User != "" && downloadConfig.Password != "" {
-		request.SetBasicAuth(downloadConfig.User, downloadConfig.Password)
+	if c.cfg.User != "" && c.cfg.Password != "" {
+		request.SetBasicAuth(c.cfg.User, c.cfg.Password)
 	}
 }
