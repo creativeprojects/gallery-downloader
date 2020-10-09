@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"gallery-downloader/config"
 	"gallery-downloader/download"
 	"gallery-downloader/scan"
@@ -24,6 +25,7 @@ func main() {
 	checkSource(flags)
 	checkType(flags)
 	checkOutput(flags)
+	checkParallel(flags)
 
 	cfg, err := config.LoadFileConfiguration(flags.ConfigFile)
 	if err != nil {
@@ -97,6 +99,13 @@ func checkOutput(flags Flags) {
 	}
 }
 
+func checkParallel(flags Flags) {
+	if flags.Parallel > 1 &&
+		(flags.WaitMin > 0 || flags.WaitMax > 0) {
+		log.Fatal("Cannot use parallel download with -min-wait and/or -max-wait parameters at the same time")
+	}
+}
+
 func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, flags Flags, browserConfig config.Browser) {
 	// Let's consider this is a file on disk
 	sourcefile, err := os.Open(sourceFile)
@@ -128,6 +137,7 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 		WaitMax:       flags.WaitMax,
 		SkipVerifyTLS: flags.InsecureTLS,
 		Parallell:     flags.Parallel,
+		Progress:      handleProgress,
 	})
 	downloadContext.Pictures(pictures)
 }
@@ -140,6 +150,7 @@ func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserC
 		Password:      flags.Password,
 		Browser:       browserConfig,
 		SkipVerifyTLS: flags.InsecureTLS,
+		Progress:      handleProgress,
 	})
 	buffer, err := downloadContext.HTML(flags.Source)
 	if err != nil {
@@ -166,8 +177,32 @@ func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserC
 		WaitMin:       flags.WaitMin,
 		WaitMax:       flags.WaitMax,
 		Parallell:     flags.Parallel,
+		Progress:      handleProgress,
 	})
 	downloadContext.Pictures(pictures)
+}
+
+func handleProgress(progress download.Progress) {
+	count := ""
+	if progress.TotalFiles > 0 {
+		count = fmt.Sprintf("(%d/%d) ", progress.FileID+1, progress.TotalFiles)
+	}
+	message := ""
+	switch progress.Event {
+	case download.EventStart:
+		message = fmt.Sprintf("download starting: '%s'", progress.URL)
+	case download.EventFinished:
+		message = fmt.Sprintf("  finished downloading %d bytes", progress.Downloaded)
+	case download.EventNotSaving:
+		message = fmt.Sprintf("  not saving file of %d bytes", progress.Downloaded)
+	case download.EventError:
+		message = fmt.Sprintf("error: %s", progress.Err)
+	}
+	wait := ""
+	if progress.Wait > 0 {
+		wait = fmt.Sprintf(" and wait for %dms", progress.Wait)
+	}
+	log.Printf("%s%s%s", count, message, wait)
 }
 
 func scanPictures(source io.ReadSeeker, flags Flags) []string {

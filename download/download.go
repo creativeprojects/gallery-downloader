@@ -3,6 +3,7 @@ package download
 import (
 	"compress/gzip"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"gallery-downloader/config"
 	"gallery-downloader/headers"
@@ -35,6 +36,7 @@ type Config struct {
 	WaitMax       int
 	Parallell     int
 	SkipVerifyTLS bool
+	Progress      func(Progress)
 }
 
 // Context contains the context to download http files
@@ -110,44 +112,96 @@ func (c *Context) HTML(link string) ([]byte, error) {
 func (c *Context) Pictures(pictures []string) error {
 	total := len(pictures)
 	for index, picture := range pictures {
-		fmt.Printf("\n(%d/%d) ", index+1, total)
 		pictureURL, err := url.Parse(picture)
 		if err != nil {
-			fmt.Printf("Error parsing picture %d (%s): %v", index, picture, err)
+			if c.cfg.Progress != nil {
+				c.cfg.Progress(Progress{
+					FileID:     index,
+					TotalFiles: total,
+					Event:      EventError,
+					Err:        fmt.Errorf("invalid picture URL: %w", err),
+				})
+			}
 			continue
 		}
 		if !pictureURL.IsAbs() {
 			if c.cfg.BaseURL == nil || c.cfg.BaseURL.String() == "" {
-				fmt.Print("Error: cannot load picture: its URL is relative and no -base flag was given")
+				if c.cfg.Progress != nil {
+					c.cfg.Progress(Progress{
+						FileID:     index,
+						TotalFiles: total,
+						URL:        pictureURL.String(),
+						Event:      EventError,
+						Err:        errors.New("cannot load picture: its URL is relative and no -base flag was given"),
+					})
+				}
 				continue
 			}
 			pictureURL = joinURL(c.cfg.BaseURL, pictureURL)
 		}
 		pictureName := path.Base(pictureURL.Path)
 		if pictureName == "" || pictureName == "/" {
-			fmt.Printf("Error: cannot determine picture name from path '%s'", pictureURL.Path)
+			if c.cfg.Progress != nil {
+				c.cfg.Progress(Progress{
+					FileID:     index,
+					TotalFiles: total,
+					URL:        pictureURL.String(),
+					Event:      EventError,
+					Err:        fmt.Errorf("cannot determine picture name from path '%s'", pictureURL.Path),
+				})
+			}
 			continue
 		}
-		fmt.Printf("Loading %s...", pictureURL.String())
+		if c.cfg.Progress != nil {
+			c.cfg.Progress(Progress{
+				FileID:     index,
+				TotalFiles: total,
+				URL:        pictureURL.String(),
+				Event:      EventStart,
+			})
+		}
 		output := uniqueName(path.Join(c.cfg.Output, pictureName))
 		size, err := c.picture(pictureURL.String(), output)
 		if err != nil {
-			fmt.Printf(" failed: %v", err)
+			if c.cfg.Progress != nil {
+				c.cfg.Progress(Progress{
+					FileID:     index,
+					TotalFiles: total,
+					URL:        pictureURL.String(),
+					Event:      EventError,
+					Err:        err,
+				})
+			}
 		} else {
-			fmt.Printf(" loaded %d bytes", size)
+			progress := Progress{
+				FileID:     index,
+				TotalFiles: total,
+				URL:        pictureURL.String(),
+				Event:      EventFinished,
+				Downloaded: size,
+			}
 			if size == 0 {
 				// no need to keep an empty file
-				fmt.Printf(" (not saved)")
+				progress.Event = EventNotSaving
 				_ = os.Remove(output)
 			}
 			if c.cfg.WaitMax > 0 && c.cfg.WaitMax > c.cfg.WaitMin {
 				wait := rand.Intn(c.cfg.WaitMax - c.cfg.WaitMin)
-				fmt.Printf(" and wait %dms", wait+c.cfg.WaitMin)
+				progress.Wait = wait + c.cfg.WaitMin
+				// now send the complete progress report
+				if c.cfg.Progress != nil {
+					c.cfg.Progress(progress)
+				}
+				// and wait
 				time.Sleep(time.Duration(wait+c.cfg.WaitMin) * time.Millisecond)
+			} else {
+				// now send the complete progress report
+				if c.cfg.Progress != nil {
+					c.cfg.Progress(progress)
+				}
 			}
 		}
 	}
-	fmt.Println("")
 
 	return nil
 }
