@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 )
 
@@ -49,9 +50,9 @@ func main() {
 	}
 
 	if sourceURL.Scheme == "" {
-		downloadPicturesFromLocalGalleryFile(flags.Source, baseURL, flags, cfg.Browser)
+		downloadPicturesFromLocalGalleryFile(flags.Source, baseURL, flags, cfg)
 	} else {
-		downloadPicturesFromRemoteGallery(sourceURL, flags, cfg.Browser)
+		downloadPicturesFromRemoteGallery(sourceURL, flags, cfg)
 	}
 
 }
@@ -106,7 +107,7 @@ func checkParallel(flags Flags) {
 	}
 }
 
-func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, flags Flags, browserConfig config.Browser) {
+func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, flags Flags, cfg *config.Configuration) {
 	// Let's consider this is a file on disk
 	sourcefile, err := os.Open(sourceFile)
 	if err != nil {
@@ -121,7 +122,7 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 	if generator != "" {
 		log.Printf("detected gallery generator: '%s'", generator)
 	}
-	pictures := scanPictures(bytes.NewReader(buffer), flags)
+	pictures := scanImages(bytes.NewReader(buffer), flags, cfg)
 	if pictures == nil || len(pictures) == 0 {
 		log.Println("No picture found in the HTML source!")
 	}
@@ -132,7 +133,7 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 		User:          flags.User,
 		Password:      flags.Password,
 		Output:        flags.Output,
-		Browser:       browserConfig,
+		Browser:       cfg.Browser,
 		WaitMin:       flags.WaitMin,
 		WaitMax:       flags.WaitMax,
 		SkipVerifyTLS: flags.InsecureTLS,
@@ -142,13 +143,13 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 	downloadContext.Pictures(pictures)
 }
 
-func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserConfig config.Browser) {
+func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, cfg *config.Configuration) {
 	// We need to download the remote HTML file
 	downloadContext := download.NewContext(download.Config{
 		Referer:       flags.Referer,
 		User:          flags.User,
 		Password:      flags.Password,
-		Browser:       browserConfig,
+		Browser:       cfg.Browser,
 		SkipVerifyTLS: flags.InsecureTLS,
 		Progress:      handleProgress,
 	})
@@ -160,7 +161,7 @@ func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserC
 	if generator != "" {
 		log.Printf("detected gallery generator: '%s'", generator)
 	}
-	pictures := scanPictures(bytes.NewReader(buffer), flags)
+	pictures := scanImages(bytes.NewReader(buffer), flags, cfg)
 	if pictures == nil || len(pictures) == 0 {
 		ioutil.WriteFile(path.Join(flags.Output, "index.html"), buffer, 0644)
 		log.Println("No picture found in the HTML source. HTML file saved as index.html")
@@ -169,7 +170,7 @@ func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, browserC
 	downloadContext = download.NewContext(download.Config{
 		User:          flags.User,
 		Password:      flags.Password,
-		Browser:       browserConfig,
+		Browser:       cfg.Browser,
 		SkipVerifyTLS: flags.InsecureTLS,
 		BaseURL:       sourceURL,
 		Referer:       flags.Source,
@@ -205,16 +206,29 @@ func handleProgress(progress download.Progress) {
 	log.Printf("%s%s%s", count, message, wait)
 }
 
-func scanPictures(source io.ReadSeeker, flags Flags) []string {
+func scanImages(source io.ReadSeeker, flags Flags, cfg *config.Configuration) []string {
 	var err error
 	var pictures []string
 	log.Printf("using gallery scanner: %s", flags.Type)
+
+	if flags.Type == scan.AutoDetect || flags.Type == scan.ConfigProfiles {
+		// first pass, use regexp profiles from configuration
+		pictures, err := detectFromProfiles(cfg.Profiles, source)
+		if err != nil {
+			log.Printf("Error: %v", err)
+		}
+		if len(pictures) > 3 {
+			return pictures
+		}
+	}
+
+	// use the legacy scanners
 	for _, scanner := range scan.GalleryScanners[flags.Type] {
 		pictures, err = scanner(source)
 		if err != nil {
 			log.Fatalf("Error: cannot parse HTML source file: %v", err)
 		}
-		if len(pictures) > 1 {
+		if len(pictures) > 3 {
 			// no need to try another one
 			return pictures
 		}
@@ -225,4 +239,64 @@ func scanPictures(source io.ReadSeeker, flags Flags) []string {
 		}
 	}
 	return pictures
+}
+
+func detectFromProfiles(profiles []config.Profile, source io.ReadSeeker) ([]string, error) {
+	buffer := &bytes.Buffer{}
+	buffer.ReadFrom(source)
+
+	priority := -1
+	for {
+		// on each turn, we need to pick the smallest priority number between priority and next
+		// next represents the smaller next number bigger than priority
+		next := priority
+		run := -1
+		for i, profile := range profiles {
+			if profile.Priority > priority && (next == priority || profile.Priority < next) {
+				next = profile.Priority
+				run = i
+			}
+		}
+
+		// no profile was chosen, so we ran them all
+		if run < 0 {
+			break
+		}
+		profile := profiles[run]
+		log.Printf("detect profile %d: %s", run+1, profile.Name)
+
+		var generator, gallery, image *regexp.Regexp
+		var err error
+		if profile.Generator != "" {
+			generator, err = regexp.Compile(profile.Generator)
+			if err != nil {
+				return nil, fmt.Errorf("cannot compile generator %s: %w", profile.Generator, err)
+			}
+		}
+		if profile.DetectGallery != "" {
+			gallery, err = regexp.Compile(profile.DetectGallery)
+			if err != nil {
+				return nil, fmt.Errorf("cannot compile generator %s: %w", profile.DetectGallery, err)
+			}
+		}
+		if profile.DetectImage != "" {
+			image, err = regexp.Compile(profile.DetectImage)
+			if err != nil {
+				return nil, fmt.Errorf("cannot compile generator %s: %w", profile.DetectImage, err)
+			}
+		}
+		scanner := scan.NewGallery(scan.Config{
+			Name:            profile.Name,
+			DetectGenerator: generator,
+			DetectGallery:   gallery,
+			DetectImage:     image,
+		}, buffer.Bytes())
+		log.Printf("HasDetection: %v", scanner.HasDetection())
+		if scanner.HasDetection() {
+			log.Printf("Detected: %v", scanner.IsDetected())
+		}
+		// on next turn, don't pick anything less than this one
+		priority = profiles[run].Priority
+	}
+	return []string{"1.jpg", "2.jpg", "3.pjg", "4.jpg"}, nil
 }

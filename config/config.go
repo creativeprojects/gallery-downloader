@@ -8,7 +8,8 @@ import (
 
 // Configuration contains all configuration from JSON file
 type Configuration struct {
-	Browser Browser `json:"browser"`
+	Browser  Browser   `json:"browser"`
+	Profiles []Profile `json:"profiles"`
 }
 
 // Browser contains all browser configuration
@@ -24,6 +25,18 @@ type Browser struct {
 // Group contains browser configuration for each element (html, picture, etc.)
 type Group struct {
 	Headers map[string]string `json:"headers"`
+}
+
+// Profile contains the type of gallery and how to parse the images
+type Profile struct {
+	Priority      int    `json:"priority"`
+	Name          string `json:"name"`
+	Generator     string `json:"generator"`
+	DetectGallery string `json:"detectGallery"`
+	DetectImage   string `json:"detectImage"`
+	MinWait       int    `json:"minWait"`
+	MaxWait       int    `json:"maxWait"`
+	Parallel      int    `json:"parallel"`
 }
 
 // newConfiguration creates an empty configuration object

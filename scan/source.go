@@ -13,14 +13,15 @@ type GalleryScannerFunc func(source io.Reader) ([]string, error)
 
 // Gallery type
 const (
-	AutoDetect = "AutoDetect"
-	AnchorHREF = "AnchorHREF"
-	ListItem   = "ListItem"
+	AutoDetect     = "AutoDetect"
+	AnchorHREF     = "AnchorHREF"
+	ListItem       = "ListItem"
+	ConfigProfiles = "ConfigProfiles"
 )
 
 var (
 	// AvailableGalleryScanners lists the available gallery scanners
-	AvailableGalleryScanners = [...]string{AutoDetect, AnchorHREF, ListItem}
+	AvailableGalleryScanners = [...]string{AutoDetect, ConfigProfiles, AnchorHREF, ListItem}
 	// GalleryScanners maps the gallery scanner functions
 	GalleryScanners map[string][]GalleryScannerFunc
 )
