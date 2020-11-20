@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"gallery-downloader/config"
 	"gallery-downloader/download"
 	"gallery-downloader/scan"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -15,6 +13,8 @@ import (
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/andybalholm/cascadia"
 )
 
 func main() {
@@ -199,7 +199,6 @@ func handleProgress(progress download.Progress) {
 }
 
 func scanImages(source []byte, flags Flags, cfg *config.Configuration) []string {
-	var err error
 	var pictures []string
 	log.Printf("Using gallery scanner: %s", flags.Type)
 
@@ -214,23 +213,24 @@ func scanImages(source []byte, flags Flags, cfg *config.Configuration) []string 
 		}
 	}
 
-	buffer := bytes.NewReader(source)
-	// use the legacy scanners
-	for _, scanner := range scan.GalleryScanners[flags.Type] {
-		pictures, err = scanner(buffer)
-		if err != nil {
-			log.Fatalf("Error: cannot parse HTML source file: %v", err)
-		}
-		if len(pictures) > 3 {
-			// no need to try another one
-			return pictures
-		}
-		// rewind source stream
-		_, err = buffer.Seek(0, io.SeekStart)
-		if err != nil {
-			log.Fatalf("Error: cannot rewind stream: %s", err)
-		}
-	}
+	// var err error
+	// buffer := bytes.NewReader(source)
+	// // use the legacy scanners
+	// for _, scanner := range scan.GalleryScanners[flags.Type] {
+	// 	pictures, err = scanner(buffer)
+	// 	if err != nil {
+	// 		log.Fatalf("Error: cannot parse HTML source file: %v", err)
+	// 	}
+	// 	if len(pictures) > 3 {
+	// 		// no need to try another one
+	// 		return pictures
+	// 	}
+	// 	// rewind source stream
+	// 	_, err = buffer.Seek(0, io.SeekStart)
+	// 	if err != nil {
+	// 		log.Fatalf("Error: cannot rewind stream: %s", err)
+	// 	}
+	// }
 	return pictures
 }
 
@@ -271,6 +271,9 @@ func detectFromProfiles(profiles []config.Profile, source []byte) ([]string, err
 		if err != nil {
 			return nil, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectImage, err)
 		}
+		if image == nil {
+			return nil, fmt.Errorf("profile %s: missing detectImage", profile.Name)
+		}
 
 		scanner := scan.NewGallery(scan.Config{
 			Name:            profile.Name,
@@ -297,12 +300,22 @@ func detectFromProfiles(profiles []config.Profile, source []byte) ([]string, err
 }
 
 func newMatcher(cfg config.Parser) (scan.Matcher, error) {
-	if strings.HasPrefix(strings.ToLower(cfg.Type), "regex") {
+	matcherType := strings.ToLower(cfg.Type)
+
+	if strings.HasPrefix(matcherType, "regex") {
 		pattern, err := regexp.Compile(cfg.Match)
 		if err != nil {
 			return nil, err
 		}
 		return scan.NewRegexpMatcher(pattern), nil
+	}
+
+	if strings.HasPrefix(matcherType, "sel") || strings.HasPrefix(matcherType, "css") {
+		sel, err := cascadia.Parse(cfg.Match)
+		if err != nil {
+			return nil, err
+		}
+		return scan.NewSelectorMatcher(sel, cfg.Attribute), nil
 	}
 	return nil, nil
 }

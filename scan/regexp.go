@@ -4,6 +4,7 @@ import "regexp"
 
 type RegexpMatcher struct {
 	pattern *regexp.Regexp
+	source  []byte
 }
 
 func NewRegexpMatcher(pattern *regexp.Regexp) *RegexpMatcher {
@@ -16,8 +17,13 @@ func NewRegexpMatcher(pattern *regexp.Regexp) *RegexpMatcher {
 	}
 }
 
-func (m *RegexpMatcher) Find(source []byte) string {
-	found := m.pattern.FindSubmatch(source)
+func (m *RegexpMatcher) Source(source []byte) error {
+	m.source = source
+	return nil
+}
+
+func (m *RegexpMatcher) Find() string {
+	found := m.pattern.FindSubmatch(m.source)
 	if found == nil {
 		return ""
 	}
@@ -29,8 +35,8 @@ func (m *RegexpMatcher) Find(source []byte) string {
 	return string(found[0])
 }
 
-func (m *RegexpMatcher) FindAll(source []byte) []string {
-	all := m.pattern.FindAllSubmatch(source, -1)
+func (m *RegexpMatcher) FindAll() []string {
+	all := m.pattern.FindAllSubmatch(m.source, -1)
 	if all == nil {
 		return nil
 	}

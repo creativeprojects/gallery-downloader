@@ -41,8 +41,9 @@ type Profile struct {
 
 // Parser contains parsing data (regex or CSS selector)
 type Parser struct {
-	Type  string `json:"type"`
-	Match string `json:"match"`
+	Type      string `json:"type"`
+	Match     string `json:"match"`
+	Attribute string `json:"attribute"`
 }
 
 // newConfiguration creates an empty configuration object

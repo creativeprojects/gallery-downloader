@@ -1,6 +1,7 @@
 package scan
 
 type Matcher interface {
-	Find(source []byte) string
-	FindAll(source []byte) []string
+	Source(source []byte) error
+	Find() string
+	FindAll() []string
 }
