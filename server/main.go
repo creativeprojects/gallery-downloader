@@ -45,7 +45,7 @@ func main() {
 
 	cfg, err := config.LoadFileConfiguration(configFile)
 	if err != nil {
-		log.Fatalf("client configuration file not found")
+		log.Fatalf("Client configuration file not found")
 	}
 
 	log.Printf("Serving files from '%s' (use -root option to change the default)", root)

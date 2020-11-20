@@ -145,12 +145,12 @@ func (c *Context) Pictures(pictures []string) {
 }
 
 func (c *Context) pictureWorker(id int, jobs <-chan job, results chan<- interface{}) {
-	log.Printf("creating worker %d", id)
+	log.Printf("Creating worker %d", id)
 	for j := range jobs {
 		c.picture(j.picture, j.index, j.total)
 		results <- nil
 	}
-	log.Printf("worker %d finished", id)
+	log.Printf("Worker %d finished", id)
 }
 
 func (c *Context) picture(picture string, index, total int) {
