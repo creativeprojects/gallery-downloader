@@ -256,27 +256,22 @@ func detectFromProfiles(profiles []config.Profile, source []byte) ([]string, err
 		}
 
 		profile := profiles[run]
-		var generator, gallery, image *regexp.Regexp
-		var err error
 
-		if profile.Generator != "" {
-			generator, err = regexp.Compile(profile.Generator)
-			if err != nil {
-				return nil, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.Generator, err)
-			}
+		generator, err := newMatcher(profile.DetectGenerator)
+		if err != nil {
+			return nil, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectGenerator, err)
 		}
-		if profile.DetectGallery != "" {
-			gallery, err = regexp.Compile(profile.DetectGallery)
-			if err != nil {
-				return nil, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectGallery, err)
-			}
+
+		gallery, err := newMatcher(profile.DetectGallery)
+		if err != nil {
+			return nil, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectGallery, err)
 		}
-		if profile.DetectImage != "" {
-			image, err = regexp.Compile(profile.DetectImage)
-			if err != nil {
-				return nil, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectImage, err)
-			}
+
+		image, err := newMatcher(profile.DetectImage)
+		if err != nil {
+			return nil, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectImage, err)
 		}
+
 		scanner := scan.NewGallery(scan.Config{
 			Name:            profile.Name,
 			DetectGenerator: generator,
@@ -297,6 +292,17 @@ func detectFromProfiles(profiles []config.Profile, source []byte) ([]string, err
 		}
 		// on next turn, don't pick anything with less priority than this one
 		priority = profiles[run].Priority
+	}
+	return nil, nil
+}
+
+func newMatcher(cfg config.Parser) (scan.Matcher, error) {
+	if strings.HasPrefix(strings.ToLower(cfg.Type), "regex") {
+		pattern, err := regexp.Compile(cfg.Match)
+		if err != nil {
+			return nil, err
+		}
+		return scan.NewRegexpMatcher(pattern), nil
 	}
 	return nil, nil
 }

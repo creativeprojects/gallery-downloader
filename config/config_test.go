@@ -3,7 +3,6 @@ package config
 import (
 	"bytes"
 	"io/ioutil"
-	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -105,18 +104,4 @@ func TestLoadConfiguration(t *testing.T) {
 	assert.NotEmpty(t, cfg.Browser.HTML.Headers["Accept"])
 
 	assert.NotEmpty(t, cfg.Profiles)
-	for _, profile := range cfg.Profiles {
-		if profile.DetectGallery != "" {
-			_, err := regexp.Compile(profile.DetectGallery)
-			assert.NoErrorf(t, err, "cannot parse `%s`", profile.DetectGallery)
-		}
-		if profile.DetectImage != "" {
-			_, err := regexp.Compile(profile.DetectImage)
-			assert.NoErrorf(t, err, "cannot parse `%s`", profile.DetectImage)
-		}
-		if profile.Generator != "" {
-			_, err := regexp.Compile(profile.Generator)
-			assert.NoErrorf(t, err, "cannot parse `%s`", profile.Generator)
-		}
-	}
 }

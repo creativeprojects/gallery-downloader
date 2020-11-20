@@ -22,7 +22,7 @@ func (g *Gallery) HasDetection() bool {
 // Match returns true if this profile *can* be a match for the current file.
 // if there's no gallery detection, it returns true to try to find images
 func (g *Gallery) Match() bool {
-	return g.cfg.DetectGallery == nil || g.cfg.DetectGallery.FindIndex(g.source) != nil
+	return g.cfg.DetectGallery == nil || g.cfg.DetectGallery.Find(g.source) != ""
 }
 
 // GeneratedBy returns the name of the gallery generator (if available).
@@ -31,25 +31,10 @@ func (g *Gallery) GeneratedBy() string {
 	if g.cfg.DetectGenerator == nil {
 		return ""
 	}
-	match := g.cfg.DetectGenerator.FindSubmatch(g.source)
-	if match == nil || len(match) != 2 {
-		return ""
-	}
-	return string(match[1])
+	return g.cfg.DetectGenerator.Find(g.source)
 }
 
 // Found returns a list of images found in this gallery
 func (g *Gallery) Found() []string {
-	all := g.cfg.DetectImage.FindAllSubmatch(g.source, -1)
-	if all == nil {
-		return nil
-	}
-	found := make([]string, len(all))
-	for i, match := range all {
-		if len(match) != 2 {
-			continue
-		}
-		found[i] = string(match[1])
-	}
-	return found
+	return g.cfg.DetectImage.FindAll(g.source)
 }

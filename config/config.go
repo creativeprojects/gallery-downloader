@@ -29,14 +29,20 @@ type Group struct {
 
 // Profile contains the type of gallery and how to parse the images
 type Profile struct {
-	Priority      int    `json:"priority"`
-	Name          string `json:"name"`
-	Generator     string `json:"generator"`
-	DetectGallery string `json:"detectGallery"`
-	DetectImage   string `json:"detectImage"`
-	MinWait       int    `json:"minWait"`
-	MaxWait       int    `json:"maxWait"`
-	Parallel      int    `json:"parallel"`
+	Priority        int    `json:"priority"`
+	Name            string `json:"name"`
+	DetectGenerator Parser `json:"detectGenerator"`
+	DetectGallery   Parser `json:"detectGallery"`
+	DetectImage     Parser `json:"detectImage"`
+	MinWait         int    `json:"minWait"`
+	MaxWait         int    `json:"maxWait"`
+	Parallel        int    `json:"parallel"`
+}
+
+// Parser contains parsing data (regex or CSS selector)
+type Parser struct {
+	Type  string `json:"type"`
+	Match string `json:"match"`
 }
 
 // newConfiguration creates an empty configuration object
