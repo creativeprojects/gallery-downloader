@@ -3,24 +3,31 @@ package scan
 // Gallery profile to detect images
 type Gallery struct {
 	cfg Config
-	// source []byte
 }
 
 // NewGallery creates a new profile of gallery
-func NewGallery(cfg Config, source []byte) *Gallery {
+func NewGallery(cfg Config, source []byte) (*Gallery, error) {
 	if cfg.DetectGenerator != nil {
-		cfg.DetectGenerator.Source(source)
+		err := cfg.DetectGenerator.Source(source)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if cfg.DetectGallery != nil {
-		cfg.DetectGallery.Source(source)
+		err := cfg.DetectGallery.Source(source)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if cfg.DetectImage != nil {
-		cfg.DetectImage.Source(source)
+		err := cfg.DetectImage.Source(source)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &Gallery{
 		cfg: cfg,
-		// source: source,
-	}
+	}, nil
 }
 
 // HasDetection returns true when the current type of gallery can be detected
@@ -43,7 +50,10 @@ func (g *Gallery) GeneratedBy() string {
 	return g.cfg.DetectGenerator.Find()
 }
 
-// Found returns a list of images found in this gallery
-func (g *Gallery) Found() []string {
+// Find returns a list of images found in this gallery
+func (g *Gallery) Find() []string {
 	return g.cfg.DetectImage.FindAll()
 }
+
+// Verify interface
+var _ Gal = &Gallery{}

@@ -101,10 +101,10 @@ func checkOutput(flags Flags) {
 }
 
 func checkParallel(flags Flags) {
-	if flags.Parallel > 1 &&
-		(flags.WaitMin > 0 || flags.WaitMax > 0) {
-		log.Fatal("\nError: cannot use parallel download with -min-wait and/or -max-wait parameters at the same time")
-	}
+	// if flags.Parallel > 1 &&
+	// 	(flags.WaitMin > 0 || flags.WaitMax > 0) {
+	// 	log.Fatal("\nError: cannot use parallel download with -min-wait and/or -max-wait parameters at the same time")
+	// }
 }
 
 func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, flags Flags, cfg *config.Configuration) {
@@ -118,8 +118,8 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 	if err != nil {
 		log.Fatalf("Error cannot read gallery file: %s", err)
 	}
-	pictures := scanImages(buffer, flags, cfg)
-	if pictures == nil || len(pictures) == 0 {
+	pictures, profile := scanImages(buffer, flags, cfg)
+	if len(pictures) == 0 {
 		log.Println("No picture found in the HTML source!")
 	}
 
@@ -130,10 +130,10 @@ func downloadPicturesFromLocalGalleryFile(sourceFile string, baseURL *url.URL, f
 		Password:      flags.Password,
 		Output:        flags.Output,
 		Browser:       cfg.Browser,
-		WaitMin:       flags.WaitMin,
-		WaitMax:       flags.WaitMax,
+		WaitMin:       profile.MinWait,
+		WaitMax:       profile.MaxWait,
 		SkipVerifyTLS: flags.InsecureTLS,
-		Parallel:      flags.Parallel,
+		Parallel:      profile.Parallel,
 		Progress:      handleProgress,
 	})
 	downloadContext.Pictures(pictures)
@@ -153,8 +153,8 @@ func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, cfg *con
 	if err != nil {
 		log.Fatalf("Error: cannot download HTML source file: %v", err)
 	}
-	pictures := scanImages(buffer, flags, cfg)
-	if pictures == nil || len(pictures) == 0 {
+	pictures, profile := scanImages(buffer, flags, cfg)
+	if len(pictures) == 0 {
 		ioutil.WriteFile(path.Join(flags.Output, "index.html"), buffer, 0644)
 		log.Println("No picture found in the HTML source. HTML file saved as index.html")
 	}
@@ -167,9 +167,9 @@ func downloadPicturesFromRemoteGallery(sourceURL *url.URL, flags Flags, cfg *con
 		BaseURL:       sourceURL,
 		Referer:       flags.Source,
 		Output:        flags.Output,
-		WaitMin:       flags.WaitMin,
-		WaitMax:       flags.WaitMax,
-		Parallel:      flags.Parallel,
+		WaitMin:       profile.MinWait,
+		WaitMax:       profile.MaxWait,
+		Parallel:      profile.Parallel,
 		Progress:      handleProgress,
 	})
 	downloadContext.Pictures(pictures)
@@ -198,43 +198,23 @@ func handleProgress(progress download.Progress) {
 	log.Printf("%s%s%s", count, message, wait)
 }
 
-func scanImages(source []byte, flags Flags, cfg *config.Configuration) []string {
+func scanImages(source []byte, flags Flags, cfg *config.Configuration) ([]string, config.Profile) {
 	var pictures []string
+	var profile config.Profile
+	var err error
 	log.Printf("Using gallery scanner: %s", flags.Type)
 
 	if flags.Type == scan.AutoDetect || flags.Type == scan.ConfigProfiles {
 		// first pass, use regexp profiles from configuration
-		pictures, err := detectFromProfiles(cfg.Profiles, source)
+		pictures, profile, err = detectFromProfiles(cfg.Profiles, source)
 		if err != nil {
 			log.Printf("Error: %v", err)
 		}
-		if len(pictures) > 3 {
-			return pictures
-		}
 	}
-
-	// var err error
-	// buffer := bytes.NewReader(source)
-	// // use the legacy scanners
-	// for _, scanner := range scan.GalleryScanners[flags.Type] {
-	// 	pictures, err = scanner(buffer)
-	// 	if err != nil {
-	// 		log.Fatalf("Error: cannot parse HTML source file: %v", err)
-	// 	}
-	// 	if len(pictures) > 3 {
-	// 		// no need to try another one
-	// 		return pictures
-	// 	}
-	// 	// rewind source stream
-	// 	_, err = buffer.Seek(0, io.SeekStart)
-	// 	if err != nil {
-	// 		log.Fatalf("Error: cannot rewind stream: %s", err)
-	// 	}
-	// }
-	return pictures
+	return pictures, profile
 }
 
-func detectFromProfiles(profiles []config.Profile, source []byte) ([]string, error) {
+func detectFromProfiles(profiles []config.Profile, source []byte) ([]string, config.Profile, error) {
 	// current minimum priority to choose from
 	priority := -1
 	for {
@@ -259,44 +239,47 @@ func detectFromProfiles(profiles []config.Profile, source []byte) ([]string, err
 
 		generator, err := newMatcher(profile.DetectGenerator)
 		if err != nil {
-			return nil, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectGenerator, err)
+			return nil, profile, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectGenerator, err)
 		}
 
 		gallery, err := newMatcher(profile.DetectGallery)
 		if err != nil {
-			return nil, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectGallery, err)
+			return nil, profile, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectGallery, err)
 		}
 
 		image, err := newMatcher(profile.DetectImage)
 		if err != nil {
-			return nil, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectImage, err)
+			return nil, profile, fmt.Errorf("profile %s: cannot compile generator %s: %w", profile.Name, profile.DetectImage, err)
 		}
 		if image == nil {
-			return nil, fmt.Errorf("profile %s: missing detectImage", profile.Name)
+			return nil, profile, fmt.Errorf("profile %s: missing detectImage", profile.Name)
 		}
 
-		scanner := scan.NewGallery(scan.Config{
+		scanner, err := scan.NewGallery(scan.Config{
 			Name:            profile.Name,
 			DetectGenerator: generator,
 			DetectGallery:   gallery,
 			DetectImage:     image,
 		}, source)
+		if err != nil {
+			return nil, profile, fmt.Errorf("cannot parse source: %w", err)
+		}
 
 		if scanner.Match() {
-			images := scanner.Found()
-			if len(images) > 3 {
+			images := scanner.Find()
+			if len(images) >= profile.MinImages {
 				log.Printf("Found %d images using profile %s (#%d)", len(images), profile.Name, run+1)
 				generatedBy := scanner.GeneratedBy()
 				if generatedBy != "" {
 					log.Printf("Gallery generated by %s", generatedBy)
 				}
-				return images, nil
+				return images, profile, nil
 			}
 		}
 		// on next turn, don't pick anything with less priority than this one
 		priority = profiles[run].Priority
 	}
-	return nil, nil
+	return nil, config.Profile{}, nil
 }
 
 func newMatcher(cfg config.Parser) (scan.Matcher, error) {

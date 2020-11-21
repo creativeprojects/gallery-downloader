@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path"
 	"strings"
+	"syscall"
 )
 
 type gzipResponseWriter struct {
@@ -69,7 +70,7 @@ func main() {
 	http.HandleFunc("/", handleRequest)
 
 	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, os.Kill)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
 	log.Printf("HTTP: listening on :%s (use -http to change the default port)...", httpPort)
 	go func() {
@@ -90,6 +91,7 @@ func main() {
 	}
 
 	<-stop
+	signal.Reset()
 	fmt.Println("")
 }
 

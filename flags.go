@@ -8,17 +8,17 @@ import (
 
 // Flags from command line
 type Flags struct {
-	ConfigFile  string
-	Source      string
-	Base        string
-	Type        string
-	Output      string
-	Referer     string
-	User        string
-	Password    string
-	WaitMin     int
-	WaitMax     int
-	Parallel    int
+	ConfigFile string
+	Source     string
+	Base       string
+	Type       string
+	Output     string
+	Referer    string
+	User       string
+	Password   string
+	// WaitMin     int
+	// WaitMax     int
+	// Parallel    int
 	InsecureTLS bool
 }
 
@@ -32,9 +32,9 @@ func loadFlags() Flags {
 	flag.StringVar(&flags.Referer, "referer", "", "referer header for HTML file, or for downloading images from a local HTML file")
 	flag.StringVar(&flags.User, "user", "", "user (if the http server needs basic authentication)")
 	flag.StringVar(&flags.Password, "password", "", "password (if the http server needs basic authentication)")
-	flag.IntVar(&flags.WaitMin, "min-wait", 0, "wait n milliseconds minimum before downloading the next image")
-	flag.IntVar(&flags.WaitMax, "max-wait", 0, "wait n milliseconds maximum before downloading the next image")
-	flag.IntVar(&flags.Parallel, "parallel", 1, "download n images in parallel")
+	// flag.IntVar(&flags.WaitMin, "min-wait", 0, "wait n milliseconds minimum before downloading the next image")
+	// flag.IntVar(&flags.WaitMax, "max-wait", 0, "wait n milliseconds maximum before downloading the next image")
+	// flag.IntVar(&flags.Parallel, "parallel", 1, "download n images in parallel")
 	flag.BoolVar(&flags.InsecureTLS, "insecure-tls", false, "Skip TLS certificate verification. Should only be enabled for testing locally")
 	flag.Parse()
 	return flags

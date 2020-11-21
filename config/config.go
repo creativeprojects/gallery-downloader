@@ -34,6 +34,7 @@ type Profile struct {
 	DetectGenerator Parser `json:"detectGenerator"`
 	DetectGallery   Parser `json:"detectGallery"`
 	DetectImage     Parser `json:"detectImage"`
+	MinImages       int    `json:"minImages"`
 	MinWait         int    `json:"minWait"`
 	MaxWait         int    `json:"maxWait"`
 	Parallel        int    `json:"parallel"`
