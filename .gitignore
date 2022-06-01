@@ -3,3 +3,4 @@
 /images
 /downloader.sh
 /cert
+/.vscode/*.log
