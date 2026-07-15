@@ -1,11 +1,11 @@
 module gallery-downloader
 
-go 1.24.2
+go 1.26.5
 
 require (
-	github.com/andybalholm/cascadia v1.3.3
-	github.com/stretchr/testify v1.10.0
-	golang.org/x/net v0.39.0
+	github.com/andybalholm/cascadia v1.3.4
+	github.com/stretchr/testify v1.11.1
+	golang.org/x/net v0.57.0
 )
 
 require (
