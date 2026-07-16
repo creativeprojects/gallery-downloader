@@ -4,3 +4,4 @@
 /downloader.sh
 /cert
 /.vscode/*.log
+.DS_Store
